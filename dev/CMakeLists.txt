@@ -1,0 +1,12 @@
+add_executable(dofmanager_dev source/main.cpp)
+target_link_libraries(dofmanager_dev PRIVATE DofManager::DofManager)
+
+include(${CMAKE_SOURCE_DIR}/cmake/Utilities.cmake)
+assign_source_group("dof_manager" ${DOFMANAGER_HEADER_LIST})
+assign_source_group("dof_manager" ${DOFMANAGER_SOURCE_LIST})
+assign_source_group_Utility()
+assign_source_group_SimpleMath()
+assign_source_group_Constitutive()
+assign_source_group_FlexMesh()
+assign_source_group_FeaIo()
+assign_source_group_FiniteElement()

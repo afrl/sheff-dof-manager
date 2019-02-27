@@ -1,0 +1,39 @@
+# Make sure we have public dependencies available
+find_package(Utility CONFIG REQUIRED HINTS "${CMAKE_SOURCE_DIR}/../utility/build" "${CMAKE_SOURCE_DIR}/../utility/install_dir")
+find_package(SimpleMath CONFIG REQUIRED HINTS "${CMAKE_SOURCE_DIR}/../simple_math/build" "${CMAKE_SOURCE_DIR}/../simple_math/install_dir")
+find_package(Constitutive CONFIG REQUIRED HINTS "${CMAKE_SOURCE_DIR}/../constitutive/build" "${CMAKE_SOURCE_DIR}/../constitutive/install_dir")
+find_package(FlexMesh CONFIG REQUIRED HINTS "${CMAKE_SOURCE_DIR}/../flex_mesh/build" "${CMAKE_SOURCE_DIR}/../flex_mesh/install_dir")
+find_package(FeaIo CONFIG REQUIRED HINTS "${CMAKE_SOURCE_DIR}/../fea_io/build" "${CMAKE_SOURCE_DIR}/../fea_io/install_dir")
+find_package(FiniteElement CONFIG REQUIRED HINTS "${CMAKE_SOURCE_DIR}/../finite_element/build" "${CMAKE_SOURCE_DIR}/../finite_element/install_dir")
+
+
+if(NOT TARGET DofManager::DofManager)
+	get_filename_component(DOFMANAGER_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+    include("${DOFMANAGER_CMAKE_DIR}/DofManagerTargets.cmake")
+endif()
+
+# For targets that use this project they can call this in order to group the
+# headers by directory in within Visual Studio.
+# Note: this function only works for projects that depend on the build directory
+#   This is because the header paths are resolved during build, but the installation
+#   will have different paths.  CMake does not provide a clean way to group source files
+#   for interface targets as of CMake 3.12.0 that will propogate downstream.  For now,
+#   each target the links against this interface library requires the source groups to be set.
+function(assign_source_group_DofManager)
+	set(_source_files "@DOFMANAGER_HEADER_LIST@")
+	set(_include_match_name "dof_manager")
+    foreach(_source IN ITEMS ${_source_files})
+		# Since CMake does not support look ahead and look behind expressions
+		# We will replace "${_include_match_name}/include" with "dummy"
+		# Then we will use regex to get the substring after ${_include_match_name}/
+		string(REGEX REPLACE "${_include_match_name}[\/\\]include" "dummy" _source_modified "${_source}")
+		string(REGEX MATCH "${_include_match_name}[\/\\].*" _source_rel "${_source_modified}")
+		#message("${_source_modified} ${_source_rel}")
+		if(_source_rel)
+			get_filename_component(_source_rel_dir "${_source_rel}" PATH)
+			string(REPLACE "/" "\\" _source_group_msvc "${_source_rel_dir}")
+			#message("${_source_group_msvc} ${_source}")
+			source_group("${_source_group_msvc}" FILES "${_source}")
+		endif()
+    endforeach()
+endfunction(assign_source_group_DofManager)

@@ -8,7 +8,7 @@
 namespace dof_manager
 {
     DofMap::DofMap(const MeshType & mesh)
-        : mesh_(mesh), n_total_dofs_(0)
+        : mesh_(mesh), n_global_dofs_(0), n_local_dofs_(0)
     {
         enumerate_dofs();
     }
@@ -64,7 +64,7 @@ namespace dof_manager
                     n_index++;
                 }
             }
-            n_global_dofs_ = mesh_.nodes().size() * dofs_per_node;
+            n_global_dofs_ = static_cast<GlobalIndex>(mesh_.nodes().size()) * dofs_per_node;
             n_local_dofs_ = n_global_dofs_;
         }
     }

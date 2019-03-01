@@ -23,6 +23,10 @@ namespace dof_manager
         const GlobalIndex * const * const get_element_to_global_map() const;
         /// Access the number of DoF's each element.
         const LocalIndex * const get_element_num_dofs() const;
+        /// Returns the total number of DoFs (globally)
+        const GlobalIndex get_n_global_dofs() const;
+        /// Returns the number of DoFs on this rank
+        const GlobalIndex get_n_local_dofs() const;
         /// Add a new element to the DoF map.  Returns the local element number.
         LocalIndex add_element(const std::vector<GlobalIndex>& element_global_dofs);
         /// Add new DoF's to an existing element, enriching the number DoF's for that element.
@@ -33,6 +37,8 @@ namespace dof_manager
         const MeshType & mesh_;
         std::vector<GlobalIndex*> dof_map_;
         std::vector<LocalIndex> element_n_dofs_;
+        GlobalIndex n_global_dofs_;
+        GlobalIndex n_local_dofs_;
 
         void enumerate_dofs();
     };

@@ -18,15 +18,30 @@ namespace dof_manager
         /// The constructor will enumerate DoF's to the elements in the mesh provided.
         DofMap(const MeshType & mesh);
 
+		///////////////
+		// Accessors //
+		///////////////
+
         /// Access the element to global DoF map.  The first index is the local element number
         /// and the second index is the global DoF number of the element-level DoF index.
         const GlobalIndex * const * const get_element_to_global_map() const;
         /// Access the number of DoF's each element.
         const LocalIndex * const get_element_num_dofs() const;
+		/// Access the node to global DoF map.  The first index is the local node number
+		/// and the second index is the global DoF number of the node-level DoF index (ordered by
+		/// twin then by field component).
+		const GlobalIndex * const * const get_node_to_global_map() const;
+		/// Access the number of DoF's each node.
+		const LocalIndex * const get_node_num_dofs() const;
         /// Returns the total number of DoFs (globally)
         const GlobalIndex get_n_global_dofs() const;
         /// Returns the number of DoFs on this rank
-        const GlobalIndex get_n_local_dofs() const;
+        const LocalIndex get_n_local_dofs() const;
+
+		///////////////
+		// Modifiers //
+		///////////////
+
         /// Add a new element to the DoF map.  Returns the local element number.
         LocalIndex add_element(const std::vector<GlobalIndex>& element_global_dofs);
         /// Add new DoF's to an existing element, enriching the number DoF's for that element.
@@ -35,10 +50,12 @@ namespace dof_manager
 
     private:
         const MeshType & mesh_;
-        std::vector<GlobalIndex*> dof_map_;
+        std::vector<GlobalIndex*> element_dof_map_;
         std::vector<LocalIndex> element_n_dofs_;
+		std::vector<GlobalIndex*> node_dof_map_;
+		std::vector<LocalIndex> node_n_dofs_;
         GlobalIndex n_global_dofs_;
-        GlobalIndex n_local_dofs_;
+		LocalIndex n_local_dofs_;
 
         void enumerate_dofs();
     };

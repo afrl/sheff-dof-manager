@@ -4,6 +4,7 @@
 #include "finite_element/FiniteElement.h"
 
 #include "utility/MPIUtils.h"
+#include "utility/Range.h"
 
 namespace dof_manager
 {
@@ -15,13 +16,23 @@ namespace dof_manager
 
     const DofMap::GlobalIndex * const * const DofMap::get_element_to_global_map() const
     {
-        return &dof_map_[0];
+        return &element_dof_map_[0];
     }
 
     const DofMap::LocalIndex * const DofMap::get_element_num_dofs() const
     {
         return &element_n_dofs_[0];
     }
+
+	const DofMap::GlobalIndex * const * const DofMap::get_node_to_global_map() const
+	{
+		return &node_dof_map_[0];
+	}
+
+	const DofMap::LocalIndex * const DofMap::get_node_num_dofs() const
+	{
+		return &node_n_dofs_[0];
+	}
 
     const DofMap::GlobalIndex DofMap::get_n_global_dofs() const
     {
@@ -45,19 +56,32 @@ namespace dof_manager
             // For now, assume each node has the same number of DoF's at the start of the analysis.
             // This algorithm will have to be generalized if this is not the case.
             auto dofs_per_node = mesh_.elements().front()->get_formulation_const().get_n_dofs_per_node();
-            dof_map_.resize(mesh_.elements().size(), nullptr);
+            element_dof_map_.resize(mesh_.elements().size(), nullptr);
             element_n_dofs_.resize(mesh_.elements().size(), 0);
+
+			node_dof_map_.resize(mesh_.nodes().size(), nullptr);
+			node_n_dofs_.resize(mesh_.nodes().size(), dofs_per_node);
+			for (auto& n_ptr : mesh_.nodes())
+			{
+				GlobalIndex * & node_dof_map = node_dof_map_[n_ptr->get_local_number()];
+				node_dof_map = new GlobalIndex[dofs_per_node];
+				for (LocalIndex i = 0; i < dofs_per_node; i++)
+				{
+					node_dof_map[i] = n_ptr->get_global_number() * dofs_per_node + i;
+				}
+			}
+
             for (auto& e_ptr : mesh_.elements())
             {
                 const auto n_dofs_for_element = e_ptr->get_num_nodes() * dofs_per_node;
-                dof_map_[e_ptr->get_local_number()] = new GlobalIndex[n_dofs_for_element];
+				element_dof_map_[e_ptr->get_local_number()] = new GlobalIndex[n_dofs_for_element];
                 element_n_dofs_[e_ptr->get_local_number()] = n_dofs_for_element;
 
-                GlobalIndex * & element_dof_map = dof_map_[e_ptr->get_local_number()];
+                GlobalIndex * & element_dof_map = element_dof_map_[e_ptr->get_local_number()];
                 LocalIndex n_index = 0;
                 for (auto& n_ptr : *e_ptr)
                 {
-                    for (auto i = 0; i < dofs_per_node; i++)
+                    for (LocalIndex i = 0; i < dofs_per_node; i++)
                     {
                         element_dof_map[n_index * dofs_per_node + i] = n_ptr->get_global_number() * dofs_per_node + i;
                     }
@@ -65,7 +89,7 @@ namespace dof_manager
                 }
             }
             n_global_dofs_ = static_cast<GlobalIndex>(mesh_.nodes().size()) * dofs_per_node;
-            n_local_dofs_ = n_global_dofs_;
+            n_local_dofs_ = static_cast<LocalIndex>(n_global_dofs_);
         }
     }
 }

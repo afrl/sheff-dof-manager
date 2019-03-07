@@ -11,6 +11,7 @@ import shutil
 import getopt        # Get and parse command-line options
 import glob          # File globbing
 import subprocess    # Call external commands
+import numpy as np   # Used to save CMake config values
 
 try:
   import colorama    # Print to terminal in color
@@ -43,7 +44,8 @@ Usage: python make.py [OPTION]... [VAR=VALUE]...
 
 Available targets are:
 
- --config       Configure with cmake
+ --config       Configure with cmake: uses default values on initial configure and previously chosen values 
+                  otherwise. User can override with config options below.
  --build        Build and install (default target)
  --test         Run all unit tests
  --doc          Generate all doc
@@ -70,20 +72,48 @@ Configuration:
 class options:
   """ Class to hold command-line options, initialized to default values. """
   def __init__(self):
+    """ Initialize default and/or saved options"""
     self.log = False   # This is a hidden option. In a module, the developer will typically want to
                        # see the output of config/build (default). But we pass this option when calling 
                        # from the top-level make to hide output unless there is an error. 
-    self.use_mpi = "ON"
-    self.make_tests = "ON"
-    self.make_dev = "ON"
-    self.targets = []
+    # Default CMake config options. Except for the generator (which is unlikely to change), the CMake 
+    # options are saved to a dictionary so they can be reloaded. 
     self.generator = "Visual Studio 15 2017 Win64" 
-    self.build_type = "Debug"
+    if (os.name == "posix"):
+      self.generator = "Unix Makefiles"
+
+    self.config = {"build-type" : "Debug",
+                   "use-mpi" : "ON", 
+                   "make-dev" : "ON",
+                   "make-tests" : "ON"}
+    
+    # Other options
+    self.targets = []
     self.top_dir = os.getcwd()
     self.build_dir = os.path.join(self.top_dir, "build")
     self.install_dir = os.path.join(self.top_dir, "install_dir")
     self.print_cmd = False 
     
+    # Load previous config options if available
+    self.load() 
+    
+  def save(self):
+    """ Save CMake config options """
+    np.save(self.build_dir+'/config', self.config) # Actually saves as config.npy
+
+  def load(self):
+    """ Load CMake config options """
+    if (os.path.exists(self.build_dir + "/config.npy")):
+      self.config = np.load(self.build_dir + "/config.npy").item()
+ 
+  def print(self):
+    """ Load CMake config options """
+    print("\nConfig Options:")
+    for key in sorted(self.config):
+      print("  ", '{:<15}'.format(key), self.config[key])
+    print("")
+
+
 
 def process_args():
   """ Read in and parse command-line options and arguments. """
@@ -99,11 +129,8 @@ def process_args():
     usage ()
     sys.exit(1)
 
+  # Set the defaults/load previous config before checking options
   user_opts = options()
-
-  # Set default Linux generator before checking options
-  if (os.name == "posix"):
-    user_opts.generator = "Unix Makefiles"
 
   for o, a in opts:
     if o in ("-h", "--help"):
@@ -111,39 +138,27 @@ def process_args():
       sys.exit()
     if o in ("--log"):
       user_opts.log = True
-    if o in ("--release"):
-      user_opts.build_type = "Release"
-    if o in ("--debug"):
-      user_opts.build_type = "Debug"
     if o in ("--dir"):
       user_opts.build_dir = os.path.join(user_opts.top_dir, "build_" + a)
       user_opts.install_dir = os.path.join(user_opts.top_dir, "install_dir_" + a)
-    if o in ("--use-mpi"):
-      if a in ("OFF", "0"):
-        user_opts.use_mpi="OFF"
-    if o in ("--make-tests"):
-      if a in ("OFF", "0"):
-        user_opts.make_tests="OFF"
-    if o in ("--make-dev"):
-      if a in ("OFF", "0"):
-        user_opts.make_dev="OFF"
     if o in ("--generator"):
       if a in ("codeblocks"):
         user_opts.generator = "CodeBlocks - Unix Makefiles"
     if o in ("--print"):
       user_opts.print_cmd = True
-    if o in ("--config"):
-      user_opts.targets.append("config") 
-    if o in ("--build"):
-      user_opts.targets.append("build") 
-    if o in ("--test"):
-      user_opts.targets.append("test") 
-    if o in ("--doc"):
-      user_opts.targets.append("doc")
-    if o in ("--clear-cache"):
-      user_opts.targets.append("cache")
-    if o in ("--clean"):
-      user_opts.targets.append("clean")
+
+    # Override default/previous CMake config options 
+    if o in ("--release", "--debug"):
+      user_opts.config["build-type"] = o[2:].capitalize()
+    if o in ("--use-mpi", "--make-tests", "--make-dev"):
+      if   a in ("OFF", "0"):
+        user_opts.config[o[2:]] = "OFF"
+      elif a in ("ON", "1"):
+        user_opts.config[o[2:]] = "ON"
+
+    # Targets 
+    if o in ("--config", "--build", "--test", "--doc", "--clear-cache", "--clean"):
+      user_opts.targets.append(o[2:])
       
   # Make build the default target if none given
   if (not user_opts.targets):
@@ -183,13 +198,17 @@ def main():
     os.system('color')
   opts = process_args()
 
-  if ("cache" in opts.targets): 
+  if ("clear-cache" in opts.targets): 
     print_color("Clearing CMake cache", "yellow")
     if (os.path.exists(opts.build_dir + "/CMakeCache.txt")):
       os.remove(opts.build_dir + "/CMakeCache.txt")
 
+    # Also need to clear the saved CMake config options
+    if (os.path.exists(opts.build_dir + "/config.npy")):
+      os.remove(opts.build_dir + "/config.npy")
+
   if ("clean" in opts.targets):
-    print_color("Cleaning", "yellow")
+    print_color("Cleaning...", "yellow")
     if (os.path.exists(opts.build_dir)):
       shutil.rmtree(opts.build_dir)
 
@@ -205,15 +224,18 @@ def main():
     if (not os.path.exists(opts.install_dir)):
       os.mkdir(opts.install_dir)
 
+    # First, save options to be reloaded on next config
+    opts.save() 
+
     os.chdir(opts.build_dir)
 
     log = " | tee cmake.log"
     if (opts.log):
       log = " > cmake.log 2>&1"
 
-    cmake_flags = (" -DCMAKE_BUILD_TYPE=" + opts.build_type + 
-                   " -DDOFMANAGER_BuildDev:BOOL=" + opts.make_dev +
-                   " -DDOFMANAGER_BuildTests:BOOL=" + opts.make_tests)
+    cmake_flags = (" -DCMAKE_BUILD_TYPE=" + opts.config["build-type"] + 
+                   " -DDOFMANAGER_BuildDev:BOOL=" + opts.config["make-dev"] +
+                   " -DDOFMANAGER_BuildTests:BOOL=" + opts.config["make-tests"])
 
     print_color("Configuring------------DofManager", "blue")
     cmd = mod_for_os('cmake -G"' + opts.generator + '" ' + 
@@ -231,6 +253,9 @@ def main():
           print (fin.read()) 
       print_color("===ERROR during configuration", "red")
 
+  # Print current config options
+  if (opts.print_cmd): 
+    opts.print() 
   
   build_flag = 0
   if ("build" in opts.targets) and (config_flag == 0):
@@ -269,7 +294,7 @@ def main():
         log = " > test.log 2>&1"
 
       print_color("Testing----------------DofManager", "blue")
-      cmd = mod_for_os('ctest -C ' + opts.build_type + log)
+      cmd = mod_for_os('ctest -C ' + opts.config["build-type"] + log)
 
       if (opts.print_cmd):
         print_color(cmd, "cyan")

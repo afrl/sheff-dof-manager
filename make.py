@@ -54,10 +54,11 @@ Available targets are:
 
 Configuration:
   -h, --help           display this help and exit
-  --release            build in release mode (debug is default) 
   --dir                for building with different settings, may want multiple build/install dirs. 
-                         Select a different build name, e.g., --dir=gnu, then build dir = build_gnu 
-                         and install dir = install_dir_gnu
+                          Select a build/install suffix, e.g., --dir=gnu, then build dir = build_gnu 
+                          and install dir = install_dir_gnu. This option must come BEFORE any other
+                          config options
+  --release            build in release mode (--debug is default) 
   --use-mpi=ON         use MPI
   --make-tests=ON      turn on unit testing
   --make-dev=ON        turn on development project (a rapid protyping project intended for
@@ -141,6 +142,8 @@ def process_args():
     if o in ("--dir"):
       user_opts.build_dir = os.path.join(user_opts.top_dir, "build_" + a)
       user_opts.install_dir = os.path.join(user_opts.top_dir, "install_dir_" + a)
+      # Reload CMake config options for this dir
+      user_opts.load()
     if o in ("--generator"):
       if a in ("codeblocks"):
         user_opts.generator = "CodeBlocks - Unix Makefiles"

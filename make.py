@@ -312,7 +312,26 @@ def main():
 
 
   if ("doc" in opts.targets):
-    print ("TODO") 
+    
+    log = " | tee doxygen.log"
+    if (opts.log):
+      log = " > doxygen.log 2>&1"
+
+    previous_dir = os.getcwd()
+    os.chdir(opts.top_dir + '/docs')
+
+    print_color("Building Docs------------DofManager", "blue")
+    cmd = mod_for_os('doxygen' + log)
+  
+    doc_flag = subprocess.call(cmd, shell = True)
+
+    if (doc_flag != 0):
+      if (opts.log):
+        with open ("doxygen.log", 'r') as fin:
+          print (fin.read()) 
+      print_color("===ERROR during build of documentation", "red")
+
+    os.chdir(previous_dir)
 
 # Execute main on initial import or script call:
 if __name__=="__main__":

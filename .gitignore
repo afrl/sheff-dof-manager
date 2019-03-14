@@ -1,3 +1,6 @@
-build*
-install_dir*
+build/*
+install_dir/*
 *.GENERATED.*
+docs/html/
+*.log
+*_tagfile

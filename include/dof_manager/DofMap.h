@@ -44,9 +44,9 @@ namespace dof_manager
 
         /// Add a new element to the DoF map.  Returns the local element number.
         LocalIndex add_element(const std::vector<GlobalIndex>& element_global_dofs);
-        /// Add new DoF's to an existing element, enriching the number DoF's for that element.
+        /// Assign a new set of DoF's to an existing element, enriching the number DoF's for that element.
         void enrich_element(const LocalIndex & local_element_number,
-            const std::vector<GlobalIndex>& new_dofs);
+            const std::vector<GlobalIndex>& replacement_dofs);
 
     private:
         const MeshType & mesh_;

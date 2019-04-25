@@ -8,38 +8,77 @@
 
 namespace dof_manager
 {
+    ///////////////////////////
+    // ElementDofMap Methods //
+    ///////////////////////////
+
+    ElementDofMap::ElementDofMap(const GlobalIndex * const & element_to_global_map, const LocalIndex & n_dofs)
+        : element_to_global_map_(element_to_global_map), n_dofs_(n_dofs)
+    {
+    }
+
+    const GlobalIndex * const ElementDofMap::begin() const
+    {
+        return element_to_global_map_;
+    }
+
+    const GlobalIndex * const ElementDofMap::end() const
+    {
+        return &element_to_global_map_[n_dofs_];
+    }
+
+    const GlobalIndex ElementDofMap::operator[](const LocalIndex i) const
+    {
+        return element_to_global_map_[i];
+    }
+
+    const LocalIndex ElementDofMap::size() const
+    {
+        return n_dofs_;
+    }
+
+    ////////////////////
+    // DofMap Methods //
+    ////////////////////
+
     DofMap::DofMap(const MeshType & mesh)
         : mesh_(mesh), n_global_dofs_(0), n_local_dofs_(0)
     {
         enumerate_dofs();
     }
 
-    const DofMap::GlobalIndex * const * const DofMap::get_element_to_global_map() const
+    const GlobalIndex * const * const DofMap::get_array_of_element_maps() const
     {
         return &element_dof_map_[0];
     }
 
-    const DofMap::LocalIndex * const DofMap::get_element_num_dofs() const
+    const LocalIndex * const DofMap::get_array_of_element_n_dofs() const
     {
         return &element_n_dofs_[0];
     }
 
-	const DofMap::GlobalIndex * const * const DofMap::get_node_to_global_map() const
+    ElementDofMap DofMap::get_element_map(const LocalIndex element_local_number) const
+    {
+        return ElementDofMap(element_dof_map_[element_local_number],
+            element_n_dofs_[element_local_number]);
+    }
+
+	const GlobalIndex * const * const DofMap::get_array_of_node_maps() const
 	{
 		return &node_dof_map_[0];
 	}
 
-	const DofMap::LocalIndex * const DofMap::get_node_num_dofs() const
+	const LocalIndex * const DofMap::get_array_of_node_n_dofs() const
 	{
 		return &node_n_dofs_[0];
 	}
 
-    const DofMap::GlobalIndex DofMap::get_n_global_dofs() const
+    const GlobalIndex DofMap::get_n_global_dofs() const
     {
         return n_global_dofs_;
     }
 
-    const DofMap::GlobalIndex DofMap::get_n_local_dofs() const
+    const GlobalIndex DofMap::get_n_local_dofs() const
     {
         return n_local_dofs_;
     }

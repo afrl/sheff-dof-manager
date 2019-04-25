@@ -16,7 +16,7 @@ import numpy as np   # Used to save CMake config values
 try:
   import colorama    # Print to terminal in color
 
-  def print_color(msg, color):
+  def print_color(msg, color="white"):
     if   (color == "red"): 
       print(colorama.Fore.RED + msg + colorama.Style.RESET_ALL)
     elif (color == "green"): 
@@ -29,6 +29,9 @@ try:
       print(colorama.Fore.MAGENTA + msg + colorama.Style.RESET_ALL)
     elif (color == "cyan"): 
       print(colorama.Fore.CYAN + msg + colorama.Style.RESET_ALL)
+    else: 
+      print(colorama.Fore.WHITE + msg + colorama.Style.RESET_ALL)
+
 
 except ImportError:
   def print_color(msg, color):
@@ -65,6 +68,7 @@ Configuration:
                        devs to use while creating new tests)
   --generator=VS15     CMake generator to use. Default is `VS15` (Visual Studio 15 2017 Win64)
                        for windows and `make` (Unix Makefiles) for linux 
+  -j 20                number of parallel jobs to run for cmake/ctest
   --print              for debugging only: print the config/build command that will be executed
 
 """)
@@ -93,6 +97,7 @@ class options:
     self.top_dir = os.getcwd()
     self.build_dir = os.path.join(self.top_dir, "build")
     self.install_dir = os.path.join(self.top_dir, "install_dir")
+    self.n_jobs = "20"
     self.print_cmd = False 
     
     # Load previous config options if available
@@ -100,12 +105,12 @@ class options:
     
   def save(self):
     """ Save CMake config options """
-    np.save(self.build_dir+'/config', self.config) # Actually saves as config.npy
+    np.save(os.path.join(self.build_dir,'config'), self.config) # Actually saves as config.npy
 
   def load(self):
     """ Load CMake config options """
-    if (os.path.exists(self.build_dir + "/config.npy")):
-      self.config = np.load(self.build_dir + "/config.npy").item()
+    if (os.path.exists(os.path.join(self.build_dir, "config.npy"))):
+      self.config = np.load(os.path.join(self.build_dir, "config.npy")).item()
  
   def print(self):
     """ Load CMake config options """
@@ -121,12 +126,13 @@ def process_args():
 
   # First, parse the options
   try:
-    opts, args = getopt.gnu_getopt(sys.argv[1:], "h", ["help", "log", "release", "debug", "dir=",
+    opts, args = getopt.gnu_getopt(sys.argv[1:], "hj:", ["help", "log", "release", "debug", "dir=",
     "use-mpi=", "make-tests=", "make-dev=", "generator=", "print", "config", "build", "test", "doc", 
     "clear-cache", "clean"])
 
-  except getopt.GetoptError:
+  except getopt.GetoptError as err:
     print ("\n===Error: invalid command-line options or arguments")
+    print(str(err))
     usage ()
     sys.exit(1)
 
@@ -147,6 +153,8 @@ def process_args():
     if o in ("--generator"):
       if a in ("codeblocks"):
         user_opts.generator = "CodeBlocks - Unix Makefiles"
+    if o in ("-j"):
+      user_opts.n_jobs = str(a)
     if o in ("--print"):
       user_opts.print_cmd = True
 
@@ -203,12 +211,12 @@ def main():
 
   if ("clear-cache" in opts.targets): 
     print_color("Clearing CMake cache", "yellow")
-    if (os.path.exists(opts.build_dir + "/CMakeCache.txt")):
-      os.remove(opts.build_dir + "/CMakeCache.txt")
+    if (os.path.exists(os.path.join(opts.build_dir, "CMakeCache.txt"))):
+      os.remove(os.path.join(opts.build_dir, "CMakeCache.txt"))
 
     # Also need to clear the saved CMake config options
-    if (os.path.exists(opts.build_dir + "/config.npy")):
-      os.remove(opts.build_dir + "/config.npy")
+    if (os.path.exists(os.path.join(opts.build_dir, "config.npy"))):
+      os.remove(os.path.join(opts.build_dir, "config.npy"))
 
   if ("clean" in opts.targets):
     print_color("Cleaning...", "yellow")
@@ -238,7 +246,8 @@ def main():
 
     cmake_flags = (" -DCMAKE_BUILD_TYPE=" + opts.config["build-type"] + 
                    " -DDOFMANAGER_BuildDev:BOOL=" + opts.config["make-dev"] +
-                   " -DDOFMANAGER_BuildTests:BOOL=" + opts.config["make-tests"])
+                   " -DDOFMANAGER_BuildTests:BOOL=" + opts.config["make-tests"] +
+                   " -j " + opts.n_jobs)
 
     print_color("Configuring------------DofManager", "blue")
     cmd = mod_for_os('cmake -G"' + opts.generator + '" ' + 
@@ -264,7 +273,7 @@ def main():
   if ("build" in opts.targets) and (config_flag == 0):
 
     # First check if we've configured
-    if (not os.path.exists(opts.build_dir + "/CMakeCache.txt")):
+    if (not os.path.exists(os.path.join(opts.build_dir, "CMakeCache.txt"))):
       print_color("===ERROR: No cmake config. Please run the --config target first", "red") 
     else: 
       os.chdir(opts.build_dir)
@@ -274,7 +283,7 @@ def main():
         log = " > build.log 2>&1"
 
       print_color("Building---------------DofManager", "blue")
-      cmd = mod_for_os('cmake --build . --target install' + log)
+      cmd = mod_for_os('cmake --build . --target install -j ' + opts.n_jobs + log)
 
       if (opts.print_cmd):
         print_color(cmd, "cyan")
@@ -297,7 +306,7 @@ def main():
         log = " > test.log 2>&1"
 
       print_color("Testing----------------DofManager", "blue")
-      cmd = mod_for_os('ctest -C ' + opts.config["build-type"] + log)
+      cmd = mod_for_os('ctest -C ' + opts.config["build-type"] + ' -j ' + opts.n_jobs + log)
 
       if (opts.print_cmd):
         print_color(cmd, "cyan")
@@ -318,7 +327,7 @@ def main():
       log = " > doxygen.log 2>&1"
 
     previous_dir = os.getcwd()
-    os.chdir(opts.top_dir + '/docs')
+    os.chdir(os.path.join(opts.top_dir, 'docs'))
 
     print_color("Building Docs------------DofManager", "blue")
     cmd = mod_for_os('doxygen' + log)

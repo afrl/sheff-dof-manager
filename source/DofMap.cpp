@@ -131,4 +131,26 @@ namespace dof_manager
             n_local_dofs_ = static_cast<LocalIndex>(n_global_dofs_);
         }
     }
+
+    void DofMap::enrich_element(
+            const LocalIndex & local_element_number,
+            const std::vector<GlobalIndex>& replacement_dofs)
+    {
+        auto n_old_dofs = element_n_dofs_[local_element_number];
+        auto n_new_dofs = replacement_dofs.size();
+        auto n_added_dofs = n_new_dofs - n_old_dofs;
+
+        n_global_dofs_ += n_added_dofs;
+        n_local_dofs_ += n_added_dofs; //Do we need this?
+
+        delete element_dof_map_[local_element_number];
+        GlobalIndex *new_dofs = new GlobalIndex[n_new_dofs];
+        element_dof_map_[local_element_number] = new_dofs;
+        std::copy(replacement_dofs.begin(), replacement_dofs.end(), new_dofs);
+
+        element_n_dofs_[local_element_number] = n_new_dofs;
+
+        //TODO: Update node map?
+
+    }
 }

@@ -18,8 +18,8 @@ if(NOT cmake_build_type_tolower STREQUAL "debug"
 endif()
 
 # Ensure we have C++ 14 support
-include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag("-std=c++14" ${PROJECT_NAME}_COMPILER_SUPPORT_CPP14)
-if(NOT ${PROJECT_NAME}_COMPILER_SUPPORT_CPP14)
-	message(FATAL_ERROR "The compiler must support C++ 14.")
-endif()
+#include(CheckCXXCompilerFlag)
+#check_cxx_compiler_flag("-std=c++14" ${PROJECT_NAME}_COMPILER_SUPPORT_CPP14)
+#if(NOT ${PROJECT_NAME}_COMPILER_SUPPORT_CPP14)
+#   message(FATAL_ERROR "The compiler must support C++ 14.")
+#endif()

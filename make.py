@@ -4,4 +4,4 @@ from make_helper import CMakeOptionType
 
 specialized_opts = []
 
-make_helper.make(specialized_opts, build_order=dependencies.get_build_order())
+make_helper.make(specialized_opts)

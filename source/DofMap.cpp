@@ -12,7 +12,7 @@ namespace dof_manager
     // ElementDofMap Methods //
     ///////////////////////////
 
-    ElementDofMap::ElementDofMap(const GlobalIndex * const & element_to_global_map, const LocalIndex & n_dofs)
+    ElementDofMap::ElementDofMap(const GlobalIndex * const element_to_global_map, const LocalIndex & n_dofs)
         : element_to_global_map_(element_to_global_map), n_dofs_(n_dofs)
     {
     }
@@ -134,23 +134,23 @@ namespace dof_manager
 
     void DofMap::enrich_element(
             const LocalIndex & local_element_number,
-            const std::vector<GlobalIndex>& replacement_dofs)
+            const std::vector<GlobalIndex>& replacement_dofs,
+            GlobalIndex n_global_dofs)
     {
-        auto n_old_dofs = element_n_dofs_[local_element_number];
-        auto n_new_dofs = replacement_dofs.size();
-        auto n_added_dofs = n_new_dofs - n_old_dofs;
+        auto element_n_dofs_new = replacement_dofs.size();
+        auto n_added_dofs = n_global_dofs - n_global_dofs_;
 
         n_global_dofs_ += n_added_dofs;
         n_local_dofs_ += n_added_dofs; //Do we need this?
 
         delete element_dof_map_[local_element_number];
-        GlobalIndex *new_dofs = new GlobalIndex[n_new_dofs];
+        GlobalIndex *new_dofs = new GlobalIndex[element_n_dofs_new];
         element_dof_map_[local_element_number] = new_dofs;
         std::copy(replacement_dofs.begin(), replacement_dofs.end(), new_dofs);
 
-        element_n_dofs_[local_element_number] = n_new_dofs;
+        element_n_dofs_[local_element_number] = element_n_dofs_new;
 
-        //TODO: Update node map?
+        //TODO: Update node map
 
     }
 }

@@ -16,7 +16,7 @@ namespace dof_manager
     class ElementDofMap
     {
     public:
-        ElementDofMap(const GlobalIndex * const & element_to_global_map,
+        ElementDofMap(const GlobalIndex * const element_to_global_map,
             const LocalIndex & n_dofs);
         const GlobalIndex * const begin() const;
         const GlobalIndex * const end() const;
@@ -24,7 +24,7 @@ namespace dof_manager
         const LocalIndex size() const;
 
     private:
-        const GlobalIndex * const & element_to_global_map_;
+        const GlobalIndex * const element_to_global_map_;
         const LocalIndex & n_dofs_;
     };
 
@@ -68,7 +68,8 @@ namespace dof_manager
         LocalIndex add_element(const std::vector<GlobalIndex>& element_global_dofs);
         /// Assign a new set of DoF's to an existing element, enriching the number DoF's for that element.
         void enrich_element(const LocalIndex & local_element_number,
-            const std::vector<GlobalIndex>& replacement_dofs); //TODO: stuff for updating node_map
+            const std::vector<GlobalIndex>& replacement_dofs,
+            GlobalIndex n_global_dofs); //TODO: stuff for updating node_map
 
     private:
         const MeshType & mesh_;

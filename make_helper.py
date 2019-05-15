@@ -111,6 +111,7 @@ class MakeOptions:
         self.doc = False
         self.clear_cache = False
         self.clean = False
+        self.copy_make = False
 
         # The CMake options are saved to a dictionary so they can be reloaded.
         self.cmake_opts = {
@@ -130,8 +131,6 @@ class MakeOptions:
 
         # Options specific to the top-level project
         if module_type == ModuleType.TopLevel:
-            self.copy_make = False
-
             # Module selection options
             self.include_third_party = False
             self.include_second_party = False

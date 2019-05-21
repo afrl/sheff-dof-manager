@@ -4,3 +4,4 @@ install_dir/*
 docs/html/
 *.log
 *_tagfile
+__pycache__/

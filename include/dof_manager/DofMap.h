@@ -69,7 +69,17 @@ namespace dof_manager
         /// Assign a new set of DoF's to an existing element, enriching the number DoF's for that element.
         void enrich_element(const LocalIndex & local_element_number,
             const std::vector<GlobalIndex>& replacement_dofs,
-            GlobalIndex n_global_dofs); //TODO: stuff for updating node_map
+            GlobalIndex n_global_dofs);
+
+        /// Adds (new_global_dof_start, new_global_dof_start + 1, ...) up to n_new_dofs
+        /// to the end of the node dof map for boundary conditions.  Note: all of the
+        /// components for a field should be added at once, since the boundary
+        /// conditions assume the ordering.
+        void enrich_node(const LocalIndex& local_element_number,
+            GlobalIndex new_global_dof_start,
+            LocalIndex n_new_dofs);
+
+        const std::string str() const;
 
     private:
         const MeshType & mesh_;

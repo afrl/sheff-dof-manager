@@ -141,7 +141,6 @@ namespace dof_manager
         auto n_added_dofs = n_global_dofs - n_global_dofs_;
 
         n_global_dofs_ += n_added_dofs;
-        n_local_dofs_ += n_added_dofs; //Do we need this?
 
         delete element_dof_map_[local_element_number];
         GlobalIndex *new_dofs = new GlobalIndex[element_n_dofs_new];
@@ -149,8 +148,58 @@ namespace dof_manager
         std::copy(replacement_dofs.begin(), replacement_dofs.end(), new_dofs);
 
         element_n_dofs_[local_element_number] = element_n_dofs_new;
+    }
 
-        //TODO: Update node map
+    void DofMap::enrich_node(
+        const LocalIndex& local_node_number,
+        GlobalIndex new_global_dof_start,
+        LocalIndex n_added_dofs)
+    {
+        const auto n_old_dofs_for_node = node_n_dofs_[local_node_number];
+        const auto n_new_dofs_for_node = n_old_dofs_for_node + n_added_dofs;
+        auto& node_dof_map = node_dof_map_[local_node_number];
 
+        n_local_dofs_ += n_added_dofs;
+
+        // Resize the dof map for the node (keeping the older numbering for
+        // i = [0, n_old_dofs_for_node)
+        GlobalIndex* new_node_dof_map = new GlobalIndex[n_new_dofs_for_node];
+        std::copy(node_dof_map, node_dof_map + n_old_dofs_for_node, new_node_dof_map);
+        delete[] node_dof_map;
+        node_dof_map = new_node_dof_map;
+        node_n_dofs_[local_node_number] = n_new_dofs_for_node;
+
+        // Set the new dof numbers
+        for (auto i : utility::range_from_zero(n_added_dofs))
+        {
+            node_dof_map[i + n_old_dofs_for_node] = new_global_dof_start + i;
+        }
+    }
+
+    const std::string DofMap::str() const
+    {
+        std::stringstream ss;
+        ss << "Element DoF Map: (" << element_n_dofs_.size() << " elements)" << std::endl;
+        for (auto i : utility::range_from_zero(element_n_dofs_.size()))
+        {
+            for (auto j : utility::range_from_zero(element_n_dofs_[i]))
+            {
+                ss << " " << element_dof_map_[i][j];
+            }
+            ss << std::endl;
+        }
+
+        ss << "Node DoF Map: (" << node_n_dofs_.size() << " nodes)" << std::endl;
+        for (auto i : utility::range_from_zero(node_n_dofs_.size()))
+        {
+            for (auto j : utility::range_from_zero(node_n_dofs_[i]))
+            {
+                ss << " " << node_dof_map_[i][j];
+            }
+            ss << std::endl;
+        }
+
+
+        return ss.str();
     }
 }

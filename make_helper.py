@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#! /usr/bin/python3
+
 """ Script to automate building BSAM++, including all submodules. Includes additional targets to 
 behave more like a makefile. """
 # Note: Lowest GNU compiler successfully tested is 8.2.0. Minimal requirement
@@ -19,6 +20,8 @@ import re            # Regex
 import datetime      # Current timestamp
 import argparse      # For parsing command line arguments
 from enum import Enum
+
+#####################################################################################
 
 try:
     import colorama    # Print to terminal in color
@@ -43,6 +46,15 @@ except ImportError:
     def print_color(msg, color):
         print(msg)
 
+#####################################################################################
+# Only prints message if "verbose" is turned on.
+
+def print_if_verbose( msg, opts ):
+
+    if( opts.verbose ):
+        print( msg )
+
+#####################################################################################
 
 def mod_for_os(cmd):
     """Windows requires some modifications via the subprocess call since PowerShell is
@@ -66,17 +78,25 @@ def mod_for_os(cmd):
         cmd = "set -o pipefail; " + cmd
     return cmd
 
+#####################################################################################
+
 def get_write_encoding():
     if os.name == 'nt':
         return 'utf-16'
     else:
         return 'utf-8'
 
-class ModuleType(Enum):
-    TopLevel = 1,
-    FirstParty = 2,
+#####################################################################################
+
+class ModuleType( Enum ):
+    TopLevel    = 1,
+    FirstParty  = 2,
     SecondParty = 3,
-    ThirdParty = 4
+    ThirdParty  = 4
+
+#
+# End class ModuleType
+#####################################################################################
 
 class ModuleDirectories:
     def __init__(self, module_name, module_type, module_dir, dir_suffix):
@@ -84,26 +104,31 @@ class ModuleDirectories:
         self.module_type = module_type
         self.module_dir = module_dir
         if module_type == ModuleType.ThirdParty:
-            self.build_dir = os.path.normpath(os.path.join(self.module_dir, '../', module_name + '_build' + dir_suffix)).replace('\\', '/')
-            self.install_dir = os.path.normpath(os.path.join(self.module_dir, '../', module_name + '_install_dir' + dir_suffix)).replace('\\', '/')
+            self.build_dir = os.path.normpath(os.path.join(self.module_dir, '..', module_name + '_build' + dir_suffix)).replace('\\', '/')
+            self.install_dir = os.path.normpath(os.path.join(self.module_dir, '..', module_name + '_install_dir' + dir_suffix)).replace('\\', '/')
         else:
             self.build_dir = os.path.join(self.module_dir, 'build' + dir_suffix).replace('\\', '/')
             self.install_dir = os.path.join(self.module_dir, 'install_dir' + dir_suffix).replace('\\', '/')
 
     def __str__(self):
-        string = 'Module ' + self.name + ' directories:\n   '
-        attrs = vars(self)
-        string += '\n   '.join("%s: %s" % item for item in attrs.items())
+        string = 'Module: ' + self.name + '\n   '
+        attrs = sorted( vars(self).items() )
+        string += '\n   '.join( "%s: %s" % item for item in attrs )
         return string
+
+#
+# End class ModuleDirectories
+#####################################################################################
 
 class MakeOptions:
     """ Class to hold command-line options, initialized to default values. """
 
-    def __init__(self, module_name, module_type):
-        """ Initialize default and/or saved options"""
+    def __init__( self, module_name, module_type ):
+        """ Initialize default options"""
 
         self.root_module_dir = os.getcwd()
         self.root_module_type = module_type
+        self.root_build_dir = "" # Need path to store config files
 
         self.config = False
         self.build = False
@@ -125,7 +150,7 @@ class MakeOptions:
 
         # Build options
         self.verbose = False
-        self.n_jobs = "20"
+        self.n_jobs = "1"
         self.print_cmd = False
         self.dir_suffix = ""
 
@@ -139,14 +164,12 @@ class MakeOptions:
             # Directory options
             self.modules_dir = os.path.join(self.root_module_dir, "modules")
 
-        # Load previous config options if available
-        self.load()
 
-    def get_selected_module_dirs(self, module_info):
+    def get_selected_module_dirs( self, module_info ):
         module_dirs = []
         if self.root_module_type != ModuleType.TopLevel:
-            module_dirs.append(ModuleDirectories(module_info.root_module_name,
-                module_info.root_module_type, module_info.root_module_dir, self.dir_suffix))
+            module_dirs.append( ModuleDirectories( module_info.root_module_name,
+                                                   module_info.root_module_type, module_info.root_module_dir, self.dir_suffix ) )
         else:
             if self.include_top:
                 module_dirs.append(ModuleDirectories(module_info.root_module_name,
@@ -165,38 +188,84 @@ class MakeOptions:
                         ModuleType.ThirdParty, module_dir, self.dir_suffix))
         return module_dirs
 
-    def save(self):
+    ################
+    # Note: currently saving and loading special_cmake_opts, but not that once an 
+    # opt is set, you can't unset it without removing the config (via clear-cache or clean)
+    def save( self ):
         """ Save CMake config options """
-        # Actually saves as config.npy
-        np.save(os.path.join(self.root_module_dir, "config"), self.config)
+        # Actually saves as config.npz
+        np.savez( os.path.join(self.root_build_dir, "config"), cmake_opts = self.cmake_opts, special_cmake_opts = self.special_cmake_opts )
         
-    def load(self):
-        """ Load CMake config options """
-        if (os.path.exists(os.path.join(self.root_module_dir, "config.npy"))):
-            self.config = np.load(os.path.join(self.root_module_dir, "config.npy")).item()
+    ################
 
-    def print(self):
+    def load( self ):
+        """ Load CMake config options """
+        if( os.path.exists(os.path.join(self.root_build_dir, "config.npz")) ):
+            data = np.load(os.path.join(self.root_build_dir, "config.npz"))
+
+            copts  = data['cmake_opts'].item()
+            scopts = data['special_cmake_opts'].item()
+
+            self.cmake_opts.update( copts )
+            self.special_cmake_opts.update( scopts )
+
+    ################
+
+    def print( self ):
         """ Print CMake config options """
-        print("\nCMake configuration options:")
-        for key in sorted(self.cmake_opts):
-            print("  ", '{:<15}'.format(key), self.cmake_opts[key])
-        print("")
-        print("\nSpecialized CMake configuration options:")
-        for key in sorted(self.special_cmake_opts):
-            print("  ", '{:<15}'.format(key), self.special_cmake_opts[key])
-        print("")
+
+        print( "MakeOptions:\n" )
+        print( "  root_module_dir: ",  self.root_module_dir )
+        print( "  root_module_type: ", self.root_module_type )
+        print( "  root_build_dir: ",   self.root_build_dir )
+
+        print( "  config: ",           self.config )
+        print( "  build: ",            self.build )
+        print( "  run_tests: ",        self.run_tests )
+        print( "  doc: ",              self.doc )
+        print( "  clear_cache: ",      self.clear_cache )
+        print( "  clean: ",            self.clean )
+        print( "  copy_make: ",        self.copy_make )
+        
+        print( "  verbose: ",          self.verbose )
+        print( "  n_jobs: ",           self.n_jobs )
+        print( "  print_cmd: ",        self.print_cmd )
+        print( "  dir_suffix: ",       self.dir_suffix )
+
+        if self.root_module_type == ModuleType.TopLevel:
+            print( "  TopLevelModule fields:\n" )
+            print( "    include_third_party: ",  self.include_third_party )
+            print( "    include_second_party: ", self.include_second_party )
+            print( "    include_first_party: ",  self.include_first_party )
+            print( "    include_top: ",          self.include_top )
+            print( "    modules_dir: ",          self.modules_dir )
+
+        print( "\n  CMake configuration options:" )
+        for key in sorted( self.cmake_opts ):
+            print("   ", '{:<15}'.format(key), self.cmake_opts[key])
+        print( "" )
+        print( "\nSpecialized CMake configuration options:" )
+        for key in sorted( self.special_cmake_opts ):
+            print( "   ", '{:<15}'.format(key), self.special_cmake_opts[key] )
+        print( "" )
     
-    def __str__(self):
+    ################
+
+    def __str__( self ):
         string = 'Options:\n   '
-        attrs = vars(self)
+        attrs = vars( self )
         string += '\n   '.join("%s: %s" % item for item in attrs.items())
         return string
 
+#
+# End class MakeOptions
+#####################################################################################
+
 class ModuleInfo:
-    def __init__(self, root_module_dir):
+    def __init__( self, root_module_dir ):
         self.root_module_dir = os.path.abspath(root_module_dir)
         self.root_module_name, self.root_module_type = \
-            self.determine_module_name_and_type(root_module_dir)
+            self.determine_module_name_and_type( root_module_dir )
         self.first_party_submodules = {}
         self.second_party_submodules = {}
         self.third_party_submodules = {}
@@ -244,14 +313,25 @@ class ModuleInfo:
                 else:
                     self.first_party_submodules[directory] = os.path.join(root_dir, 'modules', directory)
                     
-class CMakeOptionType(Enum):
+#
+# End class ModuleInfo
+#####################################################################################
+
+class CMakeOptionType( Enum ):
     UserDefinedBool = 1,
-    AlwaysTrueBool = 2,
+    AlwaysTrueBool  = 2,
     AlwaysFalseBool = 3
 
+#
+# End class CMakeOptionType
+#####################################################################################
+
 class SpecializedCMakeOption:
-    def __init__(self, option_type=CMakeOptionType.UserDefinedBool, \
-        config_var='', help_str='', modules_and_var_map={}):
+    def __init__( self, \
+                  option_type=CMakeOptionType.UserDefinedBool, \
+                  config_var='', \
+                  help_str='', \
+                  modules_and_var_map={} ):
 
         self.type = option_type
         self.cmd_line_flag = '--' + config_var
@@ -260,13 +340,18 @@ class SpecializedCMakeOption:
         self.help_str = help_str
         self.modules_and_var_map = modules_and_var_map
 
-def parse_options(specialized_options = []):
+#
+# End class SpecializedCMakeOption
+#####################################################################################
+
+def parse_options( specialized_options = [] ):
+
     # Windows requires calling color first before any prints for commandline colors to work.
     if (os.name == 'nt'):
-      os.system('color')
+        os.system('color')
 
     # First figure out what type of module this is being run from
-    module_info = ModuleInfo(os.getcwd())
+    module_info = ModuleInfo( os.getcwd() )
 
     if module_info.root_module_type == ModuleType.TopLevel:
         description = 'A make utility for configuring, building, and testing BSAM++ \
@@ -277,8 +362,8 @@ def parse_options(specialized_options = []):
     parser = argparse.ArgumentParser(description=description)
     # Commands
     command_group = parser.add_argument_group('Commands')
-    command_group.add_argument('--config', action='store_true',
-                               help='Configures CMake with the provided configuration options')
+    command_group.add_argument(
+        '--config', action='store_true', help='Configures CMake with the provided (or saved) configuration options')
     command_group.add_argument(
         '--build', action='store_true', help='Build and install')
     command_group.add_argument(
@@ -286,7 +371,7 @@ def parse_options(specialized_options = []):
     command_group.add_argument(
         '--doc', action='store_true', help='Generate the doxygen documentation')
     command_group.add_argument(
-        '--clear-cache', action='store_true', help='Clear the CMake cache files')
+        '--clear-cache', action='store_true', help='Clear the CMake cache files and saved config options')
     command_group.add_argument(
         '--clean', action='store_true', help='Delete build and install directories')
     if module_info.root_module_type == ModuleType.TopLevel:
@@ -297,17 +382,27 @@ def parse_options(specialized_options = []):
     config_group.add_argument('--generator', default='', action='store',
                               choices=('VS2015', 'VS2017', 'VS2019',
                                        'make', 'codeblocks'),
-                              help='Specify the CMake generator to use.  Default is `VS2015` (Visual Studio 15 2017 Win64) for windows and `make` (Unix Makefiles) for linux')
+                              help='Specify the CMake generator to use.  Default is `VS2017` (Visual Studio 15 2017 Win64) for windows and `make` (Unix Makefiles) for linux')
     config_group.add_argument(
         '--release', action='store_true', help='Build in release mode (debug is default)')
     config_group.add_argument(
+        '--make-dev', action='store_true', help='Build the dev projects')
+    config_group.add_argument(
+        '--nomake-dev', action='store_true')
+    config_group.add_argument(
         '--make-tests', action='store_true', help='Build the submodule unit-tests')
-    config_group.add_argument('-j', type=int, dest='n_jobs', default=20,
-                              help='Specify the number of parallel jobs to run for cmake/ctest (default 20)')
+    config_group.add_argument(
+        '--nomake-tests', action='store_true')
+    config_group.add_argument(
+        '-j', type=int, dest='n_jobs', default=1,
+                              help='Specify the number of parallel jobs to run for cmake/ctest (default 1)')
+    ##################
     # Add special options
     for special_opt in specialized_options:
         if special_opt.type == CMakeOptionType.UserDefinedBool:
-            config_group.add_argument(special_opt.cmd_line_flag, action='store_true', help=special_opt.help_str)
+            config_group.add_argument( special_opt.cmd_line_flag, action='store_true', help=special_opt.help_str )
+
+    ##################
     # Top-level specifc options
     if module_info.root_module_type == ModuleType.TopLevel:
         select_group = parser.add_argument_group(
@@ -322,6 +417,8 @@ def parse_options(specialized_options = []):
             '--second-party', action='store_true', help='Include all second-party submodules')
         select_group.add_argument(
             '--third-party', action='store_true', help='Include all third-party submodules')
+
+    ##################
     # Misc. options
     misc_group = parser.add_argument_group('Misc. options')
     misc_group.add_argument('--verbose', '-v', action='store_true',
@@ -337,7 +434,8 @@ def parse_options(specialized_options = []):
 
     # From the parsed arguments, create a MakeOptions object with
     # the appropriate properties
-    opts = MakeOptions(module_info.root_module_name, module_info.root_module_type)
+    opts = MakeOptions( module_info.root_module_name, module_info.root_module_type )
+
     # Commands
     if args.config:
         opts.config = True
@@ -349,6 +447,23 @@ def parse_options(specialized_options = []):
         opts.clear_cache = True
     if args.clean:
         opts.clean = True
+
+    # Directory suffix option: This MUST come before the other options as dir_suffix affects 
+    # build location and therefore saved config options (since we may want to save different 
+    # config options for different build directories). Note that we only need to know the root 
+    # build dir, as local calls to config will load their own local root build dir config opts. 
+    # We then load any stored options before overriding with current options.
+    if args.dir_suffix != '':
+        opts.dir_suffix = '_' + args.dir_suffix
+    # Define root build dir:
+    if module_info.root_module_type == ModuleType.ThirdParty:
+        opts.root_build_dir = os.path.normpath(os.path.join(module_info.root_module_dir, '..', \
+          module_info.root_module_name + '_build' + opts.dir_suffix)).replace('\\', '/')
+    else:
+        opts.root_build_dir = os.path.join(module_info.root_module_dir, 'build' + opts.dir_suffix).replace('\\', '/')
+    # Load previous config options if available
+    opts.load()
+
     # Configuration options
     if args.generator != '':
         if args.generator == 'VS2015':
@@ -363,16 +478,26 @@ def parse_options(specialized_options = []):
             opts.cmake_opts['generator'] = 'CodeBlocks - Unix Makefiles'
     if args.release:
         opts.cmake_opts['build-type'] = 'Release'
+    if args.make_dev:
+        opts.cmake_opts['make-dev'] = 'ON'
+    if args.nomake_dev:
+        opts.cmake_opts['make-dev'] = 'OFF'
     if args.make_tests:
         opts.cmake_opts['make-tests'] = 'ON'
+    if args.nomake_tests:
+        opts.cmake_opts['make-tests'] = 'OFF'
+
     opts.n_jobs = args.n_jobs
-    # Specialied configuraiton options
+
+    # Specialied configuration options
     for special_opt in specialized_options:
         if special_opt.type == CMakeOptionType.UserDefinedBool:
             if getattr(args, special_opt.args_attr):
                 opts.special_cmake_opts[special_opt.config_var] = 'ON'
-            else:
+            elif not opts.special_cmake_opts.get(special_opt.config_var):
+                # If not already defined by loaded config file, then default to OFF
                 opts.special_cmake_opts[special_opt.config_var] = 'OFF'
+
     # Top-level specifc options
     if module_info.root_module_type == ModuleType.TopLevel:
         if args.copy_make:
@@ -396,18 +521,17 @@ def parse_options(specialized_options = []):
     # Misc. options
     if args.verbose:
         opts.verbose = True
-    if args.dir_suffix != '':
-        opts.dir_suffix = '_' + args.dir_suffix
+        opts.print_cmd = True
 
     if args.print:
         opts.print_cmd = True
 
-        print(opts)
-        print('')
         opts.print()
-        print(module_info)
+        print( module_info )
 
     return opts, module_info
+
+#####################################################################################
 
 def clear_cache(selected_modules_dirs):
     """Clear CMake cache and saved config opts"""
@@ -421,86 +545,162 @@ def clear_cache(selected_modules_dirs):
         if (os.path.exists(config_cmake_path)):
             os.remove(config_cmake_path)
 
-def clean(selected_modules_dirs):
+#####################################################################################
+
+def clean( selected_modules_dirs, opts ):
+
     """Deletes the build and install directories"""
     print_color("Cleaning...", "yellow")
-    for module_dir in selected_modules_dirs:
-        if (os.path.exists(module_dir.build_dir)):
-            shutil.rmtree(module_dir.build_dir)
-        if (os.path.exists(module_dir.install_dir)):
-            shutil.rmtree(module_dir.install_dir)
 
-def config(opts, selected_modules_dirs, specialized_options = []):
     for module_dir in selected_modules_dirs:
-        # Make sure the build and install directories exist
-        if (not os.path.exists(module_dir.build_dir)):
-            os.mkdir(module_dir.build_dir)
-        if (not os.path.exists(module_dir.install_dir)):
-            os.mkdir(module_dir.install_dir)
+
+        print_if_verbose( "    " + module_dir.build_dir + ": ", opts )
+
+        if( os.path.exists( module_dir.build_dir ) ):
+            shutil.rmtree( module_dir.build_dir )
+            print_if_verbose( "        ...Deleting directory: " + module_dir.build_dir, opts )
+
+        if( os.path.exists( module_dir.install_dir ) ):
+            shutil.rmtree( module_dir.install_dir )
+            print_if_verbose( "        ...Deleting directory: " + module_dir.install_dir, opts )
+
+        # Also delete compiled python files
+        if (os.path.exists(os.path.join(module_dir.module_dir, '__pycache__'))):
+            shutil.rmtree(os.path.join(module_dir.module_dir, '__pycache__'))
+            print_if_verbose( "        ...Deleting __pycache__", opts )
+
+        if (os.path.exists(os.path.join(module_dir.module_dir, 'make_helper.pyc'))):
+            os.remove(os.path.join(module_dir.module_dir, 'make_helper.pyc'))
+            print_if_verbose( "        ...Deleting make_helper.pyc", opts )
+
+        if (os.path.exists(os.path.join(module_dir.module_dir, 'dependencies.pyc'))):
+            os.remove(os.path.join(module_dir.module_dir, 'dependencies.pyc'))
+            print_if_verbose( "        ...Deleting dependencies.pyc", opts )
+
+#####################################################################################
+
+def config( opts, module_dir, specialized_options = [] ):
+
+    # Only check for proper configuration of 2nd and 3rd party when configuring at the top level.
+    if( module_dir.module_type == ModuleType.TopLevel ) :
+
+        # If this is a First Party module, verify that 2nd and 3rd party config have already taken place.
+        if( module_dir.module_type == ModuleType.FirstParty ):
+            # Assume that if the 2P and 3P build dirs do not exist, then they have not been configured.
+            error_occurred = False
+            if( not os.path.exists( opts.root_module_dir + "/modules/second_party/second_party_math/build" ) ):
+                print( "Error: Second_Party modules have not been configured yet." );
+                print( "       Add --second-party to make.py command line." );
+                error_occurred = True
+            if( not os.path.exists( opts.root_module_dir + "/modules/third_party/json_build" ) ):
+                print( "Error: Third_Party modules have not been configured yet." );
+                print( "       Add --third-party to make.py command line." );
+                error_occurred = True
+            if( error_occurred ):
+                sys.exit()
         
-        os.chdir(module_dir.build_dir)
+        # If this is a Second Party module, verify that the 3rd party config has already taken place.
+        if( module_dir.module_type == ModuleType.SecondParty ):
+            if( not os.path.exists( opts.root_module_dir + "/modules/third_party/json_build" ) ):
+                print( "Error: Third_Party modules have not been configured yet." );
+                print( "       Add --third-party to make.py command line." );
+                sys.exit()
+        
+    # Make sure the build and install directories exist
+    if( not os.path.exists( module_dir.build_dir ) ):
+        os.mkdir( module_dir.build_dir )
 
+    if( not os.path.exists( module_dir.install_dir ) ):
+        os.mkdir( module_dir.install_dir )
+
+    if( module_dir == "bsamxx" ):
+        # First, save options to be reloaded on next config
+        opts.save()
+        
+    os.chdir( module_dir.build_dir )
+
+    write_log = module_dir.module_dir != opts.root_module_dir
+
+    if opts.verbose:
         log = " | tee cmake.log"
-        write_log = module_dir.module_dir != opts.root_module_dir
+    else:
+        log = " > cmake.log 2>&1"
+
+    module_name_caps = module_dir.name.upper().replace('_', '')
+
+    cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str( opts.n_jobs )
+
+    if module_dir.module_type != ModuleType.ThirdParty:
+        cmake_flags += ' -D' + module_name_caps + '_BuildDev:BOOL='   + opts.cmake_opts["make-dev"]   + \
+                       ' -D' + module_name_caps + '_BuildTests:BOOL=' + opts.cmake_opts["make-tests"]
+
+    for special_opt in specialized_options:
+        if module_dir.name in special_opt.modules_and_var_map.keys():
+            if special_opt.type == CMakeOptionType.UserDefinedBool:
+                cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=' + opts.special_cmake_opts[special_opt.config_var]
+            elif special_opt.type == CMakeOptionType.AlwaysTrueBool:
+                cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=ON'
+            elif special_opt.type == CMakeOptionType.AlwaysFalseBool:
+                cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
+
+    print_color( "Configuring module: " + module_dir.name, "blue" )
+    cmd = mod_for_os( 'cmake -G"' + opts.cmake_opts['generator'] + '" ' + 
+                      '-DCMAKE_INSTALL_PREFIX:PATH="' + module_dir.install_dir + '" ' + 
+                      cmake_flags + ' "' + module_dir.module_dir + '" ' + log )
+
+    if opts.print_cmd:
+        print_color( cmd, "cyan" )
+
+    config_flag = subprocess.call(cmd, shell=True)
+
+    if config_flag != 0:
         if write_log:
-            log = " > cmake.log 2>&1"
+            with open("cmake.log", 'r', encoding=get_write_encoding()) as fin:
+                file_str = fin.read()
+                print(file_str)
+                print_color("===ERROR during configuration. (See cmake.log for details)", "red")
+                if "Error" in file_str:
+                    sys.exit()
+        else:
+            print_color("===ERROR during configuration. (See cmake.log for details)", "red")
 
-        module_name_caps = module_dir.name.upper().replace('_', '')
+#
+# End config()
+#####################################################################################
 
-        cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str(opts.n_jobs)
+def build( opts, module_dir ):
 
-        if module_dir.module_type != ModuleType.ThirdParty:
-            cmake_flags += ' -D' + module_name_caps + '_BuildDev:BOOL=' + opts.cmake_opts["make-dev"] \
-                    + ' -D' + module_name_caps + '_BuildTests:BOOL=' + opts.cmake_opts["make-tests"]
+    os.chdir( module_dir.build_dir )
 
-        for special_opt in specialized_options:
-            if module_dir.name in special_opt.modules_and_var_map.keys():
-                if special_opt.type == CMakeOptionType.UserDefinedBool:
-                    cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=' + opts.special_cmake_opts[special_opt.config_var]
-                elif special_opt.type == CMakeOptionType.AlwaysTrueBool:
-                    cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=ON'
-                elif special_opt.type == CMakeOptionType.AlwaysFalseBool:
-                    cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
+    write_log = module_dir.module_dir != opts.root_module_dir
+    #if write_log:
+    #    log = " > build.log 2>&1"
 
+    if( opts.verbose or opts.root_module_type != ModuleType.TopLevel ):
+        log = " 2>&1 | tee build.log"
+    else:
+        log = " > build.log 2>&1"
 
-        print_color("Configuring------------" + module_dir.name, "blue")
-        cmd = mod_for_os('cmake -G"' + opts.cmake_opts['generator'] + '" ' + 
-            '-DCMAKE_INSTALL_PREFIX:PATH="' + module_dir.install_dir + '" ' + 
-            cmake_flags + ' "' + module_dir.module_dir + '" ' + log)
+    print_color("Building---------------" + module_dir.name, "blue")
 
-        if opts.print_cmd:
-            print_color(cmd, "cyan")
+    vflag = ""
+    if( opts.verbose ):
+        vflag = "-v "
 
-        config_flag = subprocess.call(cmd, shell=True)
+    cmd = mod_for_os( 'cmake --build . --target install -j ' + str( opts.n_jobs ) + ' ' + vflag + log )
 
-        if config_flag != 0:
-            if write_log:
-                with open("cmake.log", 'r', encoding=get_write_encoding()) as fin:
-                    print(fin.read()) 
-            print_color("===ERROR during configuration", "red")
+    if( opts.print_cmd ):
+        print_color( cmd, "cyan" )
 
-def build(opts, selected_modules_dirs):
-    for module_dir in selected_modules_dirs:
-        os.chdir(module_dir.build_dir)
+    build_flag = subprocess.call(cmd, shell = True)
 
-        log = " | tee build.log"
-        write_log = module_dir.module_dir != opts.root_module_dir
+    if build_flag != 0:
         if write_log:
-            log = " > build.log 2>&1"
+            with open("build.log", 'r', encoding=get_write_encoding()) as fin:
+                print(fin.read()) 
+        print_color( "===ERROR during build", "red" )
 
-        print_color("Building---------------" + module_dir.name, "blue")
-        cmd = mod_for_os('cmake --build . --target install -j ' + str(opts.n_jobs) + ' ' + log)
-
-        if (opts.print_cmd):
-            print_color(cmd, "cyan")
-
-        build_flag = subprocess.call(cmd, shell = True)
-
-        if build_flag != 0:
-            if write_log:
-                with open("build.log", 'r', encoding=get_write_encoding()) as fin:
-                    print(fin.read()) 
-            print_color("===ERROR during build", "red")
+#####################################################################################
 
 def test(opts, selected_modules_dirs):
     for module_dir in selected_modules_dirs:
@@ -514,6 +714,8 @@ def test(opts, selected_modules_dirs):
         if (test_flag != 0):
             print_color("===ERROR during unit testing", "red")
 
+#####################################################################################
+
 def copy_make(opts, selected_modules_dirs):
     if opts.root_module_type == ModuleType.TopLevel:
         for module_dir in selected_modules_dirs:
@@ -522,28 +724,85 @@ def copy_make(opts, selected_modules_dirs):
                 shutil.copy(src=os.path.join(opts.root_module_dir, 'make_helper.py'), \
                     dst=os.path.join(module_dir.module_dir, 'make_helper.py'))
 
-def make(specialized_opts, build_order=[]):
+#####################################################################################
+
+def Config_BSAMXX_Version_H( mod_dir ):
+
+    top_dir = os.getcwd()
+
+    with open(os.path.join(top_dir, "include", "bsamxx_version.h.in"), 'r') as header_template:
+        header_str = header_template.read()
+   
+    # Warn not to modify updated .h file 
+    header_str = header_str.replace( '${OVERWRITE_WARNING}', "DO NOT MODIFY. Automatically configured from bsamxx_version.h.in" )
+
+    # Get top-level version and hash
+    with (open("CMakeLists.txt")) as cmake:
+        cmake_str = cmake.read()
+
+    version = re.search('BSAMXX VERSION (.*) LANGUAGES', cmake_str).group(1)
+    header_str = header_str.replace('${BSAMXX_VERSION}', version)
+
+    proc = subprocess.Popen( ['git', 'log', "--pretty=format:'%h'", '-1'], 
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE )
+    bsamxx_hash, _ = proc.communicate()
+
+    bsamxx_hash = bsamxx_hash.decode( 'ascii' ).replace("'","") 
+    header_str = header_str.replace( '${BSAMXX_HASH}', bsamxx_hash )
+
+    # FIXME: do module stuff here...
+
+    # Finally write the full string to the header file
+    with open(os.path.join(top_dir, "include", "bsamxx_version.h"), 'w') as header_file:
+        header_file.write( header_str )
+
+
+#####################################################################################
+
+def make( specialized_opts, build_order=[] ):
     """The kernel of the make process.  Call this with any specialized options that may
     be needed by the particular module(s).  If build_order is provided, then the modules
     will be sorted by that order for all operations."""
 
-    opts, module_info = parse_options(specialized_opts)
-    selected_modules = opts.get_selected_module_dirs(module_info)
+    #for x in range( len( specialized_opts ) ):
+    #    print( x, ": ", specialized_opts[x].cmd_line_flag, ", ", specialized_opts[x].args_attr, ", ", specialized_opts[x].config_var, ", ", specialized_opts[x].modules_and_var_map )
+
+    opts, module_info = parse_options( specialized_opts )
+
+    selected_modules = opts.get_selected_module_dirs( module_info )
+
     if len(build_order) != 0:
         selected_modules.sort(key=lambda x: build_order.index(x.name))
 
     if opts.clear_cache:
-        clear_cache(selected_modules)
+        clear_cache( selected_modules )
+
     if opts.clean:
-        clean(selected_modules)
+        clean( selected_modules, opts )
+
+    if ( opts.root_module_type == ModuleType.TopLevel ) and ( opts.config or opts.build or opts.doc ):
+        # First update the bsamxx_version.h header
+        Config_BSAMXX_Version_H( opts.root_build_dir )
+
     if opts.config:
-        config(opts, selected_modules, specialized_opts)
-    if opts.build:
-        build(opts, selected_modules)
+
+        for module_dir in selected_modules:
+            config( opts, module_dir, specialized_opts )
+            if opts.build:
+                build( opts, module_dir )
+
+    if opts.build and not opts.config:
+      for module_dir in selected_modules:
+        build( opts, module_dir )
+
     if opts.run_tests:
         test(opts, selected_modules)
-    if opts.copy_make:
+
+    if module_info.root_module_type == ModuleType.TopLevel:
+      if opts.copy_make:
         copy_make(opts, selected_modules)
+
+#####################################################################################
 
 # Example usage:
 """
@@ -553,8 +812,7 @@ from make_helper import SpecializedCMakeOption
 specialized_opts = [
     SpecializedCMakeOption('make-paraview-reader', 'Build the ParaView reader (only applies to fea_io)', { 'fea_io': 'FEAIO_BuildParaViewReader' }),
     SpecializedCMakeOption('use-mpi', 'Build with MPI (requires MPI environment variables for CMake to find it)', { 'fea_io': 'FEAIO_USE_MPI' }),
-    SpecializedCMakeOption('use-fs', 'Turn on if compiler has <experimental/filesystem>', { 'fea_io': 'FEAIO_HaveFilesystem', 'utility': 'UTILITY_HaveFilesystem' })
     ]
 
-make_helper.make(specialized_opts)
+make_helper.make( specialized_opts )
 """

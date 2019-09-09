@@ -622,13 +622,17 @@ def config( opts, module_dir, specialized_options = [] ):
     write_log = module_dir.module_dir != opts.root_module_dir
 
     if opts.verbose:
-        log = " | tee cmake.log"
+        log = " 2>&1 | tee cmake.log"
     else:
         log = " > cmake.log 2>&1"
 
     module_name_caps = module_dir.name.upper().replace('_', '')
 
-    cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str( opts.n_jobs )
+    vflag = ""
+    if( opts.verbose ):
+        vflag = " -- VERBOSE=true "
+
+    cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str( opts.n_jobs ) + vflag
 
     if module_dir.module_type != ModuleType.ThirdParty:
         cmake_flags += ' -D' + module_name_caps + '_BuildDev:BOOL='   + opts.cmake_opts["make-dev"]   + \
@@ -651,15 +655,18 @@ def config( opts, module_dir, specialized_options = [] ):
     if opts.print_cmd:
         print_color( cmd, "cyan" )
 
-    config_flag = subprocess.call(cmd, shell=True)
+    config_flag = subprocess.call( cmd, shell=True )
 
     if config_flag != 0:
         if write_log:
-            with open("cmake.log", 'r', encoding=get_write_encoding()) as fin:
+            with open( "cmake.log", 'r', encoding=get_write_encoding() ) as fin:
                 file_str = fin.read()
-                print(file_str)
+                print( file_str )
                 print_color("===ERROR during configuration. (See cmake.log for details)", "red")
-                if "Error" in file_str:
+
+                # Note: the string "CMake Error is looked for because warnings will still generate
+                # the words containing the text "Error" in the description of the warnings (for some reason).
+                if "CMake Error" in file_str:
                     sys.exit()
         else:
             print_color("===ERROR during configuration. (See cmake.log for details)", "red")
@@ -685,9 +692,9 @@ def build( opts, module_dir ):
 
     vflag = ""
     if( opts.verbose ):
-        vflag = "-v "
+        vflag = " -- VERBOSE=true "
 
-    cmd = mod_for_os( 'cmake --build . --target install -j ' + str( opts.n_jobs ) + ' ' + vflag + log )
+    cmd = mod_for_os( 'cmake --build . --target install -j ' + str( opts.n_jobs ) + vflag + log )
 
     if( opts.print_cmd ):
         print_color( cmd, "cyan" )

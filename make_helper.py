@@ -318,18 +318,19 @@ class ModuleInfo:
 # End class ModuleInfo
 #####################################################################################
 
-class CMakeOptionType( Enum ):
-    UserDefinedBool = 1,
-    AlwaysTrueBool  = 2,
-    AlwaysFalseBool = 3
+class SpecializedOptionType( Enum ):
+    CMakeUserDefinedBool = 1,
+    CMakeAlwaysTrueBool  = 2,
+    CMakeAlwaysFalseBool = 3,
+    EnvVarSetTrue = 4
 
 #
-# End class CMakeOptionType
+# End class SpecializedOptionType
 #####################################################################################
 
 class SpecializedCMakeOption:
     def __init__( self, \
-                  option_type=CMakeOptionType.UserDefinedBool, \
+                  option_type=SpecializedOptionType.CMakeUserDefinedBool, \
                   config_var='', \
                   help_str='', \
                   modules_and_var_map={} ):
@@ -343,6 +344,22 @@ class SpecializedCMakeOption:
 
 #
 # End class SpecializedCMakeOption
+#####################################################################################
+
+class SpecializedEnvVarOption:
+    def __init__(self,
+                 option_name='',
+                 environment_var='',
+                 help_str=''):
+
+        self.type = SpecializedOptionType.EnvVarSetTrue
+        self.cmd_line_flag = '--' + option_name
+        self.args_attr = option_name.replace('-', '_')
+        self.env_var = environment_var
+        self.help_str = help_str
+
+#
+# End class SpecializedEnvVarOption
 #####################################################################################
 
 def parse_options( specialized_options = [] ):
@@ -400,7 +417,7 @@ def parse_options( specialized_options = [] ):
     ##################
     # Add special options
     for special_opt in specialized_options:
-        if special_opt.type == CMakeOptionType.UserDefinedBool:
+        if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool:
             config_group.add_argument( special_opt.cmd_line_flag, action='store_true', help=special_opt.help_str )
 
     ##################
@@ -430,6 +447,13 @@ def parse_options( specialized_options = [] ):
                           Specify a build/install suffix, e.g., --dir=gnu, then build dir = build_gnu \
                           and install dir = install_dir_gnu. This option must come BEFORE any other \
                           config options')
+
+    ##################
+    # Add special options for environment variables for misc group
+    for special_opt in specialized_options:
+        if special_opt.type == SpecializedOptionType.EnvVarSetTrue:
+            misc_group.add_argument(
+                special_opt.cmd_line_flag, action='store_true', help=special_opt.help_str)
 
     ####################################
     # If no args provided, show help...
@@ -499,12 +523,15 @@ def parse_options( specialized_options = [] ):
 
     # Specialied configuration options
     for special_opt in specialized_options:
-        if special_opt.type == CMakeOptionType.UserDefinedBool:
+        if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool:
             if getattr(args, special_opt.args_attr):
                 opts.special_cmake_opts[special_opt.config_var] = 'ON'
             elif not opts.special_cmake_opts.get(special_opt.config_var):
                 # If not already defined by loaded config file, then default to OFF
                 opts.special_cmake_opts[special_opt.config_var] = 'OFF'
+        if special_opt.type == SpecializedOptionType.EnvVarSetTrue:
+            if getattr(args, special_opt.args_attr):
+                os.environ[special_opt.env_var] = 'ON'
 
     # Top-level specifc options
     if module_info.root_module_type == ModuleType.TopLevel:
@@ -597,12 +624,12 @@ def config( opts, module_dir, specialized_options = [] ):
             # Assume that if the 2P and 3P build dirs do not exist, then they have not been configured.
             error_occurred = False
             if( not os.path.exists( opts.root_module_dir + "/modules/second_party/second_party_math/build" ) ):
-                print( "Error: Second_Party modules have not been configured yet." );
-                print( "       Add --second-party to make.py command line." );
+                print( "Error: Second_Party modules have not been configured yet." )
+                print( "       Add --second-party to make.py command line." )
                 error_occurred = True
             if( not os.path.exists( opts.root_module_dir + "/modules/third_party/json_build" ) ):
-                print( "Error: Third_Party modules have not been configured yet." );
-                print( "       Add --third-party to make.py command line." );
+                print( "Error: Third_Party modules have not been configured yet." )
+                print( "       Add --third-party to make.py command line." )
                 error_occurred = True
             if( error_occurred ):
                 sys.exit()
@@ -610,8 +637,8 @@ def config( opts, module_dir, specialized_options = [] ):
         # If this is a Second Party module, verify that the 3rd party config has already taken place.
         if( module_dir.module_type == ModuleType.SecondParty ):
             if( not os.path.exists( opts.root_module_dir + "/modules/third_party/json_build" ) ):
-                print( "Error: Third_Party modules have not been configured yet." );
-                print( "       Add --third-party to make.py command line." );
+                print( "Error: Third_Party modules have not been configured yet." )
+                print( "       Add --third-party to make.py command line." )
                 sys.exit()
         
     # Make sure the build and install directories exist
@@ -648,11 +675,11 @@ def config( opts, module_dir, specialized_options = [] ):
 
     for special_opt in specialized_options:
         if module_dir.name in special_opt.modules_and_var_map.keys():
-            if special_opt.type == CMakeOptionType.UserDefinedBool:
+            if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool:
                 cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=' + opts.special_cmake_opts[special_opt.config_var]
-            elif special_opt.type == CMakeOptionType.AlwaysTrueBool:
+            elif special_opt.type == SpecializedOptionType.CMakeAlwaysTrueBool:
                 cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=ON'
-            elif special_opt.type == CMakeOptionType.AlwaysFalseBool:
+            elif special_opt.type == SpecializedOptionType.CMakeAlwaysFalseBool:
                 cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
 
     print_color( "Configuring module: " + module_dir.name, "blue" )

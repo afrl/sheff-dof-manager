@@ -10,16 +10,15 @@ behave more like a makefile. """
 
 from __future__ import print_function
 
-import argparse      # For parsing command line arguments
-import datetime      # Current timestamp
-import glob          # File globbing
-import numpy as np   # Used to save CMake config values
-import os
-import re            # Regex
-import shutil
-import subprocess    # Call external commands
 import sys
-
+import os
+import shutil
+import glob          # File globbing
+import subprocess    # Call external commands
+import numpy as np   # Used to save CMake config values
+import re            # Regex
+import datetime      # Current timestamp
+import argparse      # For parsing command line arguments
 from enum import Enum
 
 #####################################################################################
@@ -455,13 +454,6 @@ def parse_options( specialized_options = [] ):
             misc_group.add_argument(
                 special_opt.cmd_line_flag, action='store_true', help=special_opt.help_str)
 
-    ####################################
-    # If no args provided, show help...
-    if( len( sys.argv ) == 1 ):
-        parser.print_help()
-        sys.exit( 1 )
-    ####################################
-
     args = parser.parse_args()
 
     # From the parsed arguments, create a MakeOptions object with
@@ -657,30 +649,30 @@ def config( opts, module_dir, specialized_options = [] ):
     write_log = module_dir.module_dir != opts.root_module_dir
 
     if opts.verbose:
-        log = " 2>&1 | tee cmake.log"
+        log = " | tee cmake.log"
     else:
         log = " > cmake.log 2>&1"
 
     module_name_caps = module_dir.name.upper().replace('_', '')
 
-    vflag = ""
-    if( opts.verbose ):
-        vflag = " -- VERBOSE=true "
-
-    cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str( opts.n_jobs ) + vflag
+    cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str( opts.n_jobs )
 
     if module_dir.module_type != ModuleType.ThirdParty:
         cmake_flags += ' -D' + module_name_caps + '_BuildDev:BOOL='   + opts.cmake_opts["make-dev"]   + \
                        ' -D' + module_name_caps + '_BuildTests:BOOL=' + opts.cmake_opts["make-tests"]
 
     for special_opt in specialized_options:
-        if module_dir.name in special_opt.modules_and_var_map.keys():
-            if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool:
-                cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=' + opts.special_cmake_opts[special_opt.config_var]
-            elif special_opt.type == SpecializedOptionType.CMakeAlwaysTrueBool:
-                cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=ON'
-            elif special_opt.type == SpecializedOptionType.CMakeAlwaysFalseBool:
-                cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
+        if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool or \
+            special_opt.type == SpecializedOptionType.CMakeAlwaysTrueBool or \
+            special_opt.type == SpecializedOptionType.CMakeAlwaysFalseBool:
+            
+            if module_dir.name in special_opt.modules_and_var_map.keys():
+                if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool:
+                    cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=' + opts.special_cmake_opts[special_opt.config_var]
+                elif special_opt.type == SpecializedOptionType.CMakeAlwaysTrueBool:
+                    cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=ON'
+                elif special_opt.type == SpecializedOptionType.CMakeAlwaysFalseBool:
+                    cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
 
     print_color( "Configuring module: " + module_dir.name, "blue" )
     cmd = mod_for_os( 'cmake -G"' + opts.cmake_opts['generator'] + '" ' + 
@@ -690,18 +682,15 @@ def config( opts, module_dir, specialized_options = [] ):
     if opts.print_cmd:
         print_color( cmd, "cyan" )
 
-    config_flag = subprocess.call( cmd, shell=True )
+    config_flag = subprocess.call(cmd, shell=True)
 
     if config_flag != 0:
         if write_log:
-            with open( "cmake.log", 'r', encoding=get_write_encoding() ) as fin:
+            with open("cmake.log", 'r', encoding=get_write_encoding()) as fin:
                 file_str = fin.read()
-                print( file_str )
+                print(file_str)
                 print_color("===ERROR during configuration. (See cmake.log for details)", "red")
-
-                # Note: the string "CMake Error is looked for because warnings will still generate
-                # the words containing the text "Error" in the description of the warnings (for some reason).
-                if "CMake Error" in file_str:
+                if "Error" in file_str:
                     sys.exit()
         else:
             print_color("===ERROR during configuration. (See cmake.log for details)", "red")
@@ -727,9 +716,9 @@ def build( opts, module_dir ):
 
     vflag = ""
     if( opts.verbose ):
-        vflag = " -- VERBOSE=true "
+        vflag = "-v "
 
-    cmd = mod_for_os( 'cmake --build . --target install -j ' + str( opts.n_jobs ) + vflag + log )
+    cmd = mod_for_os( 'cmake --build . --target install -j ' + str( opts.n_jobs ) + ' ' + vflag + log )
 
     if( opts.print_cmd ):
         print_color( cmd, "cyan" )
@@ -800,53 +789,14 @@ def Config_BSAMXX_Version_H( mod_dir ):
 
 
 #####################################################################################
-# Verify that python and cmake versions are new enough...
-
-def validate_cmake_and_python():
-
-    if sys.version_info[0] < 3:
-        sys.tracebacklimit =  0
-        print( "" ) # Print blank line first...
-        raise Exception( "This script must use Python version 3+...  You are using version " + \
-                                     str( sys.version_info[0] ) + "." + str( sys.version_info[1] ) + ".\n" )
-
-    ##############################################################################
-    # Verify cmake is new enough...
-
-    try:
-        cmake_output = subprocess.check_output( "cmake --version", shell=True, stderr=subprocess.STDOUT ).decode( "utf-8" )
-    except:
-        print( "\nERROR: cmake command not found.  Please check your path.\n" );
-        sys.exit(1)
-
-    cmake_version_full = re.search( "cmake version \d+\.\d+\.\d", cmake_output )
-    if( cmake_version_full == None ):
-        print( "" )
-        print( "Internal Error: could not find/parse the cmake version in the following string:\n\n", cmake_output )
-        sys.exit( 1 )
-    
-    cmake_version = re.findall( "\d+", cmake_version_full.group(0) )
-
-    if( len(cmake_version) != 3 ):
-        print( "" )
-        print( "Internal Error: could not parse cmake version (looking for 3 numbers).  Found: ", cmake_version, "\n" )
-        sys.exit( 1 )
-
-    # FIXME: What is the actual minimum version of cmake that we need?
-    if( ( int(cmake_version[0]) < 3 ) or ( int(cmake_version[1]) < 12 ) ):
-        print( "" )
-        print( "ERROR: Cmake is too old (Found " + cmake_version_full.group(0) + ").\n" )
-        sys.exit( 1 )
-
-
-#####################################################################################
 
 def make( specialized_opts, build_order=[] ):
     """The kernel of the make process.  Call this with any specialized options that may
     be needed by the particular module(s).  If build_order is provided, then the modules
     will be sorted by that order for all operations."""
 
-    validate_cmake_and_python()
+    #for x in range( len( specialized_opts ) ):
+    #    print( x, ": ", specialized_opts[x].cmd_line_flag, ", ", specialized_opts[x].args_attr, ", ", specialized_opts[x].config_var, ", ", specialized_opts[x].modules_and_var_map )
 
     opts, module_info = parse_options( specialized_opts )
 

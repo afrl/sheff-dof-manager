@@ -718,11 +718,16 @@ def build( opts, module_dir ):
 #####################################################################################
 
 def test(opts, selected_modules_dirs):
+
+    vflag = ""
+    if( opts.verbose ):
+        vflag = " --verbose "
+
     for module_dir in selected_modules_dirs:
         os.chdir(module_dir.build_dir)
 
         print_color("Testing----------------" + module_dir.name, "blue")
-        cmd = mod_for_os('ctest -C ' + opts.cmake_opts["build-type"] + ' -j ' + str(opts.n_jobs))
+        cmd = mod_for_os('ctest ' + vflag + ' -C ' + opts.cmake_opts["build-type"] + ' -j ' + str(opts.n_jobs))
 
         test_flag = subprocess.call(cmd, shell = True)
 

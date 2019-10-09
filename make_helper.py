@@ -63,9 +63,7 @@ def mod_for_os(cmd):
     This function will take a cmd string and modify it for the particular operating system.
     """
     if (os.name == 'nt'):
-        cmd = cmd.replace('"', r'\"')
         cmd = cmd.replace('tee', 'Tee-Object')
-        cmd = 'powershell "' + cmd + '"'
     # Both config and build targets use the tee command so we can display to the screen
     # and save to a log simultaneously. The log is needed so that the top-level make
     # knows when config/build has happened. If build was successful, log should contain
@@ -154,6 +152,10 @@ class MakeOptions:
         self.n_jobs = "1"
         self.print_cmd = False
         self.dir_suffix = ""
+        if os.name == 'nt':
+            self.shell_executable = 'powershell'
+        else:
+            self.shell_executable = '/bin/bash'
 
         # Options specific to the top-level project
         if module_type == ModuleType.TopLevel:
@@ -443,10 +445,13 @@ def parse_options( specialized_options = [] ):
                             help='Display more info during target execution')
     misc_group.add_argument('--print', action='store_true',
                             help='Print the config/build command that will be executed (for debugging)')
-    misc_group.add_argument('--dir-suffix', default='', help='for building with different settings, may want multiple build/install dirs. \
-                          Specify a build/install suffix, e.g., --dir=gnu, then build dir = build_gnu \
-                          and install dir = install_dir_gnu. This option must come BEFORE any other \
-                          config options')
+    misc_group.add_argument('--dir-suffix', default='',
+                            help='for building with different settings, may want multiple build/install dirs. \
+                            Specify a build/install suffix, e.g., --dir=gnu, then build dir = build_gnu \
+                            and install dir = install_dir_gnu. This option must come BEFORE any other \
+                            config options')
+    misc_group.add_argument('--shell-executable', default='',
+                            help='Overrides the default shell for child processes.')                     
 
     ##################
     # Add special options for environment variables for misc group
@@ -563,6 +568,9 @@ def parse_options( specialized_options = [] ):
 
         opts.print()
         print( module_info )
+
+    if args.shell_executable:
+        opts.shell_executable = args.shell_executable
 
     return opts, module_info
 
@@ -694,7 +702,7 @@ def config( opts, module_dir, specialized_options = [] ):
     if opts.print_cmd:
         print_color( cmd, "cyan" )
 
-    config_flag = subprocess.call(cmd, shell=True)
+    config_flag = subprocess.call(cmd, shell=True, executable=opts.shell_executable)
 
     if config_flag != 0:
         if write_log:
@@ -738,7 +746,7 @@ def build( opts, module_dir ):
     if( opts.print_cmd ):
         print_color( cmd, "cyan" )
 
-    build_flag = subprocess.call(cmd, shell = True)
+    build_flag = subprocess.call(cmd, shell = True, executable=opts.shell_executable)
 
     if build_flag != 0:
         if write_log:
@@ -760,7 +768,7 @@ def test(opts, selected_modules_dirs):
         print_color("Testing----------------" + module_dir.name, "blue")
         cmd = mod_for_os('ctest ' + vflag + ' -C ' + opts.cmake_opts["build-type"] + ' -j ' + str(opts.n_jobs))
 
-        test_flag = subprocess.call(cmd, shell = True)
+        test_flag = subprocess.call(cmd, shell = True, executable=opts.shell_executable)
 
         if (test_flag != 0):
             print_color("===ERROR during unit testing", "red")

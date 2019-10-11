@@ -63,7 +63,10 @@ def mod_for_os(cmd):
     This function will take a cmd string and modify it for the particular operating system.
     """
     if (os.name == 'nt'):
+        cmd = cmd.replace('\\', '/')
+        cmd = cmd.replace('"', r'\"')
         cmd = cmd.replace('tee', 'Tee-Object')
+        cmd = 'powershell "' + cmd + '"'
     # Both config and build targets use the tee command so we can display to the screen
     # and save to a log simultaneously. The log is needed so that the top-level make
     # knows when config/build has happened. If build was successful, log should contain
@@ -153,8 +156,12 @@ class MakeOptions:
         self.print_cmd = False
         self.dir_suffix = ""
         if os.name == 'nt':
-            self.shell_executable = 'powershell'
+            self.shell_executable = None
         else:
+            # We actually assume some utilities unique to bash in this build process
+            # However, if the user changes their default shell (or they are using WSL),
+            # then we need to override the shell used for subprocesses with bash.
+            # Note: the user can also override this with a cmd line option
             self.shell_executable = '/bin/bash'
 
         # Options specific to the top-level project
@@ -673,7 +680,7 @@ def config( opts, module_dir, specialized_options = [] ):
 
     vflag = ""
     if( opts.verbose ):
-        vflag = " -- VERBOSE=true "
+        vflag = " --verbose "
 
     cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str( opts.n_jobs ) + vflag
 
@@ -739,7 +746,7 @@ def build( opts, module_dir ):
 
     vflag = ""
     if( opts.verbose ):
-        vflag = " -- VERBOSE=true "
+        vflag = " --verbose "
 
     cmd = mod_for_os( 'cmake --build . --target install -j ' + str( opts.n_jobs ) + vflag + log )
 

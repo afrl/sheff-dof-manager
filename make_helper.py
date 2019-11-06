@@ -139,6 +139,9 @@ class MakeOptions:
         self.clear_cache = False
         self.clean = False
         self.copy_make = False
+        # Store cmake cmd, since on some linux installs it is cmake3
+        self.cmake_cmd = "cmake"
+        self.ctest_cmd = "ctest"
 
         # The CMake options are saved to a dictionary so they can be reloaded.
         self.cmake_opts = {
@@ -702,7 +705,7 @@ def config( opts, module_dir, specialized_options = [] ):
                     cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
 
     print_color( "Configuring module: " + module_dir.name, "blue" )
-    cmd = mod_for_os( 'cmake -G"' + opts.cmake_opts['generator'] + '" ' + 
+    cmd = mod_for_os( opts.cmake_cmd + ' -G"' + opts.cmake_opts['generator'] + '" ' + 
                       '-DCMAKE_INSTALL_PREFIX:PATH="' + module_dir.install_dir + '" ' + 
                       cmake_flags + ' "' + module_dir.module_dir + '" ' + log )
 
@@ -748,7 +751,7 @@ def build( opts, module_dir ):
     if( opts.verbose ):
         vflag = " --verbose "
 
-    cmd = mod_for_os( 'cmake --build . --target install -j ' + str( opts.n_jobs ) + vflag + log )
+    cmd = mod_for_os( opts.cmake_cmd + ' --build . --target install -j ' + str( opts.n_jobs ) + vflag + log )
 
     if( opts.print_cmd ):
         print_color( cmd, "cyan" )
@@ -773,7 +776,7 @@ def test(opts, selected_modules_dirs):
         os.chdir(module_dir.build_dir)
 
         print_color("Testing----------------" + module_dir.name, "blue")
-        cmd = mod_for_os('ctest ' + vflag + ' -C ' + opts.cmake_opts["build-type"] + ' -j ' + str(opts.n_jobs))
+        cmd = mod_for_os( opts.ctest_cmd + ' ' + vflag + ' -C ' + opts.cmake_opts["build-type"] + ' -j ' + str(opts.n_jobs))
 
         test_flag = subprocess.call(cmd, shell = True, executable=opts.shell_executable)
 
@@ -837,30 +840,39 @@ def validate_cmake_and_python():
     ##############################################################################
     # Verify cmake is new enough...
 
+    # On some linux installs, the CMake version 3 executable is actually called cmake3, 
+    # so we check for this first. 
+    cmake_cmd = "cmake3"
     try:
-        cmake_output = subprocess.check_output( "cmake --version", shell=True, stderr=subprocess.STDOUT ).decode( "utf-8" )
+        cmake_output = subprocess.check_output( "cmake3 --version", shell=True, stderr=subprocess.STDOUT ).decode( "utf-8" )
     except:
-        print( "\nERROR: cmake command not found.  Please check your path.\n" );
-        sys.exit(1)
+        cmake_cmd = "cmake"
+        try:
+            cmake_output = subprocess.check_output( "cmake --version", shell=True, stderr=subprocess.STDOUT ).decode( "utf-8" )
+        except:
+            print( "\nERROR: cmake command not found.  Please check your path.\n" );
+            sys.exit(1)
 
-    cmake_version_full = re.search( "cmake version \d+\.\d+\.\d", cmake_output )
+    cmake_version_full = re.search( cmake_cmd + " version (\d+\.\d+\.\d+\.?\d?\d?\d?)", cmake_output )
     if( cmake_version_full == None ):
         print( "" )
-        print( "Internal Error: could not find/parse the cmake version in the following string:\n\n", cmake_output )
+        print( "Internal Error: could not find/parse the " + cmake_cmd + " version in the following string:\n\n", cmake_output )
         sys.exit( 1 )
     
-    cmake_version = re.findall( "\d+", cmake_version_full.group(0) )
+    cmake_version = re.findall( "\d+", cmake_version_full.group(1) )
 
-    if( len(cmake_version) != 3 ):
+    if( len(cmake_version) < 3 ):
         print( "" )
-        print( "Internal Error: could not parse cmake version (looking for 3 numbers).  Found: ", cmake_version, "\n" )
+        print( "Internal Error: could not parse " + cmake_cmd + " version (looking for at least 3 numbers).  Found: ", cmake_version, "\n" )
         sys.exit( 1 )
 
     # FIXME: What is the actual minimum version of cmake that we need?
     if( ( int(cmake_version[0]) < 3 ) or ( int(cmake_version[1]) < 12 ) ):
         print( "" )
-        print( "ERROR: Cmake is too old (Found " + cmake_version_full.group(0) + ").\n" )
+        print( "ERROR: CMake is too old (Found " + cmake_version_full.group(0) + ").\n" )
         sys.exit( 1 )
+
+    return cmake_cmd
 
 
 #####################################################################################
@@ -870,9 +882,12 @@ def make( specialized_opts, build_order=[] ):
     be needed by the particular module(s).  If build_order is provided, then the modules
     will be sorted by that order for all operations."""
 
-    validate_cmake_and_python()
+    cmake_cmd = validate_cmake_and_python()
 
     opts, module_info = parse_options( specialized_opts )
+    if (cmake_cmd == "cmake3"):
+      opts.cmake_cmd = "cmake3"
+      opts.ctest_cmd = "ctest3"
 
     selected_modules = opts.get_selected_module_dirs( module_info )
 

@@ -64,21 +64,6 @@ namespace dof_manager
             node_n_dofs_[node_local_number]);
     }
 
-    const GlobalDofIndex DofMap::get_n_global_dofs() const
-    {
-        return n_global_dofs_;
-    }
-
-    const RankDofIndex DofMap::get_n_owned_dofs() const
-    {
-        return n_owned_dofs_;
-    }
-
-    const std::vector<GlobalDofIndex>& DofMap::get_rank_to_global_map() const
-    {
-        return rank_to_global_map_;
-    }
-
     void DofMap::start_enrichment_phase()
     {
         _UTIL_ASSERT_C(phase_ == DofMapPhase::STATIC,
@@ -307,6 +292,8 @@ namespace dof_manager
         }
 
         // Create the initial element-rank-map
+        n_owned_elements_ = 0;
+        const auto this_rank = utility::MPIUtils::get_local_rank();
         for (auto& e_ptr : mesh_.elements())
         {
             const ElementDofIndex n_dofs_for_element =
@@ -327,6 +314,11 @@ namespace dof_manager
                         rank_number;
                 }
                 node_index++;
+            }
+
+            if (e_ptr->get_parent_partition() == this_rank)
+            {
+                n_owned_elements_++;
             }
         }
 
@@ -364,10 +356,10 @@ namespace dof_manager
         // have the original sibling DoF as a ghost.
 
         // Find how many new DoF's were created on each rank
-        const auto n_new_dofs = static_cast<RankDofIndex>(
+        const auto n_new_dofs_for_this_rank = static_cast<RankDofIndex>(
             ep_new_dof_to_old_rank_map_.size());
         auto new_dofs_by_rank =
-            utility::MPIUtils::all_gather_vectors<RankDofIndex>({ n_new_dofs });
+            utility::MPIUtils::all_gather_vectors<RankDofIndex>({ n_new_dofs_for_this_rank });
         auto n_global_new_dofs = std::accumulate(new_dofs_by_rank.begin(), new_dofs_by_rank.end(), 0);
         auto n_new_dofs_from_lower_ranks = std::accumulate(
             new_dofs_by_rank.begin(),
@@ -398,10 +390,10 @@ namespace dof_manager
 
         // Update all of the counts
         n_global_dofs_ += n_global_new_dofs;
-        n_all_dofs_on_rank_ += n_new_dofs;
-        n_owned_dofs_ += n_new_dofs;
+        n_all_dofs_on_rank_ += n_new_dofs_for_this_rank;
+        n_owned_dofs_ += n_new_dofs_for_this_rank;
         owned_global_dof_begin_ += n_new_dofs_from_lower_ranks;
-        owned_global_dof_end_ += n_new_dofs_from_lower_ranks;
+        owned_global_dof_end_ += n_new_dofs_from_lower_ranks + n_new_dofs_for_this_rank;
         // n_higher_ghost_dofs_ is unchanged since we assume no new ghosts
         // n_lower_ghost_dofs_ is unchanged since we assume no new ghosts
 
@@ -414,7 +406,7 @@ namespace dof_manager
             rp_new_rank_to_old_rank_map_[new_rank_index] = new_rank_index;
         }
         // Insert the new DoF's at the end of the owned range
-        for (auto new_dof_index : utility::range_from_zero(n_new_dofs))
+        for (auto new_dof_index : utility::range_from_zero(n_new_dofs_for_this_rank))
         {
             // WARNING: Assumes n_lower_ghost_dofs_ is unchanged
             auto const new_rank_index =
@@ -423,11 +415,11 @@ namespace dof_manager
                 ep_new_dof_to_old_rank_map_[new_dof_index];
         }
         for (auto new_rank_index : utility::range(
-            n_lower_ghost_dofs_ + n_owned_dofs_ + n_new_dofs,
-            n_lower_ghost_dofs_ + n_owned_dofs_ + n_new_dofs + n_higher_ghost_dofs_))
+            n_lower_ghost_dofs_ + n_owned_dofs_ + n_new_dofs_for_this_rank,
+            n_lower_ghost_dofs_ + n_owned_dofs_ + n_new_dofs_for_this_rank + n_higher_ghost_dofs_))
         {
             // WARNING: Assumes n_lower_ghost_dofs_ and n_higher_ghost_dofs_ is unchanged
-            rp_new_rank_to_old_rank_map_[new_rank_index] = new_rank_index - n_new_dofs;
+            rp_new_rank_to_old_rank_map_[new_rank_index] = new_rank_index - n_new_dofs_for_this_rank;
         }
         ep_new_dof_to_old_rank_map_.clear();
 
@@ -505,13 +497,13 @@ namespace dof_manager
                     // A post-ghost index, which needs to be moved to the end
                     if (element_to_rank_map[i] < old_n_all_dofs_on_rank)
                     {
-                        element_to_rank_map[i] += n_new_dofs;
+                        element_to_rank_map[i] += n_new_dofs_for_this_rank;
                     }
                     // A new dof index, which needs to be moved to the end of the
                     // owned interval (before post-ghosts).
                     else
                     {
-                        element_to_rank_map[i] -= n_new_dofs;
+                        element_to_rank_map[i] -= n_new_dofs_for_this_rank;
                     }
                 }
             }
@@ -526,13 +518,13 @@ namespace dof_manager
                     // A post-ghost index, which needs to be moved to the end
                     if (node_to_rank_map[i] < old_n_all_dofs_on_rank)
                     {
-                        node_to_rank_map[i] += n_new_dofs;
+                        node_to_rank_map[i] += n_new_dofs_for_this_rank;
                     }
                     // A new dof index, which needs to be moved to the end of the
                     // owned interval (before post-ghosts).
                     else
                     {
-                        node_to_rank_map[i] -= n_new_dofs;
+                        node_to_rank_map[i] -= n_new_dofs_for_this_rank;
                     }
                 }
             }

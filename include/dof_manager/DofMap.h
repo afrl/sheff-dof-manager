@@ -115,14 +115,40 @@ namespace dof_manager
         NodeToRankDofMap get_node_map(
             const flex_mesh::LocalIndex node_local_number) const;
 
-        /// Returns the total number of DoFs (globally)
-        const GlobalDofIndex get_n_global_dofs() const;
-        /// Returns the number of DoFs owned by this rank
-        const RankDofIndex get_n_owned_dofs() const;
-
+        inline const GlobalDofIndex& get_n_global_dofs() const
+        {
+            return n_global_dofs_;
+        }
+        inline const RankDofIndex& get_n_owned_dofs() const
+        {
+            return n_owned_dofs_;
+        }
+        inline const RankDofIndex& get_n_ghost_dofs_from_lower_ranks() const
+        {
+            return n_lower_ghost_dofs_;
+        }
+        inline const RankDofIndex& get_n_ghost_dofs_from_higher_ranks() const
+        {
+            return n_higher_ghost_dofs_;
+        }
+        inline const GlobalDofIndex& get_owned_global_dof_begin() const
+        {
+            return owned_global_dof_begin_;
+        }
+        inline const GlobalDofIndex& get_owned_global_dof_end() const
+        {
+            return owned_global_dof_end_;
+        }
+        inline const flex_mesh::LocalIndex& get_n_owned_elements() const
+        {
+            return n_owned_elements_;
+        }
         /// Returns the rank to global map.  The length of the vector will be the number
         /// of all DoF's on this rank.
-        const std::vector<GlobalDofIndex>& get_rank_to_global_map() const;
+        inline const std::vector<GlobalDofIndex>& get_rank_to_global_map() const
+        {
+            return rank_to_global_map_;
+        }
 
         //////////////////////////////
         // Enrichment Phase Methods //
@@ -218,6 +244,7 @@ namespace dof_manager
 
         const MeshType & mesh_;
 
+        flex_mesh::LocalIndex n_owned_elements_;
         std::vector<RankDofIndex*> element_to_rank_maps_;
         std::vector<ElementDofIndex> element_n_dofs_;
 		std::vector<RankDofIndex*> node_to_rank_maps_;

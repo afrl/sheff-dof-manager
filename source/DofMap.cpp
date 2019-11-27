@@ -410,7 +410,7 @@ namespace dof_manager
         {
             // WARNING: Assumes n_lower_ghost_dofs_ is unchanged
             auto const new_rank_index =
-                n_lower_ghost_dofs_ + old_n_owned_dofs + new_dof_index - 1;
+                n_lower_ghost_dofs_ + old_n_owned_dofs + new_dof_index;
             rp_new_rank_to_old_rank_map_[new_rank_index] =
                 ep_new_dof_to_old_rank_map_[new_dof_index];
         }
@@ -443,15 +443,21 @@ namespace dof_manager
                 }
             }
         }
-        // Owned interval
+        // Owned interval before enrichment
         for (auto i : utility::range(n_lower_ghost_dofs_,
-            n_lower_ghost_dofs_ + n_owned_dofs_))
+            n_lower_ghost_dofs_ + old_n_owned_dofs))
         {
             const auto old_rank_index = rp_new_rank_to_old_rank_map_[i];
             const auto old_global_index = rp_old_rank_to_global_map_[old_rank_index];
             rank_to_global_map_[i] =
                 old_global_index + n_new_dofs_from_lower_ranks;
         }
+		// New owned DoF's interval
+		for (auto i : utility::range_from_zero(n_new_dofs_for_this_rank))
+		{
+			rank_to_global_map_[i + n_lower_ghost_dofs_ + old_n_owned_dofs] =
+				i + rp_old_rank_to_global_map_.back() + n_new_dofs_from_lower_ranks + 1;
+		}
         // Post-ghost interval
         // WARNING: Assumes n_lower_ghost_dofs_ and n_higher_ghost_dofs_ is unchanged
         for (auto i : utility::range(n_lower_ghost_dofs_ + n_owned_dofs_,
@@ -477,16 +483,16 @@ namespace dof_manager
         // Finally, update the element-to-rank and node-to-rank maps, since the rank numbering
         // during enrichment was:
         //  [ pre-ghosts  ] ‾‾\
-            //  [    owned    ]    | is of length: old_n_all_dofs_on_rank
-            //  [ post-ghosts ] __/ 
-            //  [  new owned  ]
-            // but we need to change it to be:
-            //  [ pre-ghosts  ] ‾‾\
-            //  [    owned    ] __/ is of length: old_n_owned_and_pre_ghost_dofs
-            //  [  new owned  ]
-            //  [ post-ghosts ]
-            // We could generalize the renumbering to take a full rank-to-rank map, but
-            // for this particular permutation, it is cheaper to just use offsets.
+        //  [    owned    ]    | is of length: old_n_all_dofs_on_rank
+        //  [ post-ghosts ] __/ 
+        //  [  new owned  ]
+        // but we need to change it to be:
+        //  [ pre-ghosts  ] ‾‾\
+        //  [    owned    ] __/ is of length: old_n_owned_and_pre_ghost_dofs
+        //  [  new owned  ]
+        //  [ post-ghosts ]
+        // We could generalize the renumbering to take a full rank-to-rank map, but
+        // for this particular permutation, it is cheaper to just use offsets.
         for (auto local_element_number : utility::range_from_zero(element_to_rank_maps_.size()))
         {
             auto& element_to_rank_map = element_to_rank_maps_[local_element_number];
@@ -494,17 +500,18 @@ namespace dof_manager
             {
                 if (element_to_rank_map[i] > old_n_owned_and_pre_ghost_dofs)
                 {
-                    // A post-ghost index, which needs to be moved to the end
-                    if (element_to_rank_map[i] < old_n_all_dofs_on_rank)
-                    {
-                        element_to_rank_map[i] += n_new_dofs_for_this_rank;
-                    }
                     // A new dof index, which needs to be moved to the end of the
                     // owned interval (before post-ghosts).
-                    else
+                    if (element_to_rank_map[i] > old_n_all_dofs_on_rank)
                     {
-                        element_to_rank_map[i] -= n_new_dofs_for_this_rank;
+                        element_to_rank_map[i] -= n_higher_ghost_dofs_;
                     }
+					// A post-ghost index, which needs to be moved to the end (due to
+					// new dof's on this rank)
+					else if (element_to_rank_map[i] > old_n_owned_and_pre_ghost_dofs)
+					{
+						element_to_rank_map[i] += n_new_dofs_for_this_rank;
+					}
                 }
             }
         }
@@ -515,17 +522,18 @@ namespace dof_manager
             {
                 if (node_to_rank_map[i] > old_n_owned_and_pre_ghost_dofs)
                 {
-                    // A post-ghost index, which needs to be moved to the end
-                    if (node_to_rank_map[i] < old_n_all_dofs_on_rank)
-                    {
-                        node_to_rank_map[i] += n_new_dofs_for_this_rank;
-                    }
-                    // A new dof index, which needs to be moved to the end of the
-                    // owned interval (before post-ghosts).
-                    else
-                    {
-                        node_to_rank_map[i] -= n_new_dofs_for_this_rank;
-                    }
+					// A new dof index, which needs to be moved to the end of the
+					// owned interval (before post-ghosts).
+					if (node_to_rank_map[i] > old_n_all_dofs_on_rank)
+					{
+						node_to_rank_map[i] -= n_higher_ghost_dofs_;
+					}
+					// A post-ghost index, which needs to be moved to the end (due to
+					// new dof's on this rank)
+					else if (node_to_rank_map[i] > old_n_owned_and_pre_ghost_dofs)
+					{
+						node_to_rank_map[i] += n_new_dofs_for_this_rank;
+					}
                 }
             }
         }

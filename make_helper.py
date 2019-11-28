@@ -51,7 +51,6 @@ except ImportError:
 # Only prints message if "verbose" is turned on.
 
 def print_if_verbose( msg, opts ):
-
     if( opts.verbose ):
         print( msg )
 
@@ -87,6 +86,26 @@ def get_write_encoding():
         return 'utf-16'
     else:
         return 'utf-8'
+
+#####################################################################################
+
+def find_generator():
+    if os.name == 'nt':
+        if os.path.exists(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC") \
+            or os.path.exists(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Tools\MSVC") \
+            or os.path.exists(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Tools\MSVC") \
+            or os.path.exists(r"C:\Program Files (x86)\Microsoft Visual Studio\2019\Test Professional\VC\Tools\MSVC"):
+            return "VS2019"
+        elif os.path.exists(r"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Tools\MSVC") \
+            or os.path.exists(r"C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Tools\MSVC") \
+            or os.path.exists(r"C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\VC\Tools\MSVC") \
+            or os.path.exists(r"C:\Program Files (x86)\Microsoft Visual Studio\2017\Test Professional\VC\Tools\MSVC"):
+            return "VS2017"
+        else:
+            print_color('No valid Visual Studio installation was found automatically.', 'red')
+            return ''
+    else:
+        return 'make'    
 
 #####################################################################################
 
@@ -145,10 +164,13 @@ class MakeOptions:
 
         # The CMake options are saved to a dictionary so they can be reloaded.
         self.cmake_opts = {
-            "generator": "Visual Studio 15 2017 Win64",
+            "generator": "Visual Studio 15 2017",
+            "architecture": "x64",
             "build-type": "Debug",
             "make-dev": "OFF",
             "make-tests": "OFF" }
+        # Note: this default should never get used due to find_generator()
+        # set defaults there.
         if (os.name == "posix"):
             self.cmake_opts['generator'] = "Unix Makefiles"
         self.special_cmake_opts = {}
@@ -512,17 +534,19 @@ def parse_options( specialized_options = [] ):
     opts.load()
 
     # Configuration options
-    if args.generator != '':
-        if args.generator == 'VS2015':
-            opts.cmake_opts['generator'] = 'Visual Studio 14 2015 Win64'
-        elif args.generator == 'VS2017':
-            opts.cmake_opts['generator'] = 'Visual Studio 15 2017 Win64'
-        elif args.generator == 'VS2019':
-            opts.cmake_opts['generator'] = 'Visual Studio 16 2019'
-        elif args.generator == 'make':
-            opts.cmake_opts['generator'] = 'Unix Makefiles'
-        elif args.generator == 'codeblocks':
-            opts.cmake_opts['generator'] = 'CodeBlocks - Unix Makefiles'
+    if args.generator == '':
+        args.generator = find_generator()
+    if args.generator == 'VS2015':
+        opts.cmake_opts['generator'] = 'Visual Studio 14 2015'
+    elif args.generator == 'VS2017':
+        opts.cmake_opts['generator'] = 'Visual Studio 15 2017'
+    elif args.generator == 'VS2019':
+        opts.cmake_opts['generator'] = 'Visual Studio 16 2019'
+    elif args.generator == 'make':
+        opts.cmake_opts['generator'] = 'Unix Makefiles'
+    elif args.generator == 'codeblocks':
+        opts.cmake_opts['generator'] = 'CodeBlocks - Unix Makefiles'
+
     if args.release:
         opts.cmake_opts['build-type'] = 'Release'
     if args.make_dev:
@@ -688,8 +712,7 @@ def config( opts, module_dir, specialized_options = [] ):
     cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str( opts.n_jobs ) + vflag
 
     if module_dir.module_type != ModuleType.ThirdParty:
-        cmake_flags += ' -D' + module_name_caps + '_BuildDev:BOOL='   + opts.cmake_opts["make-dev"]   + \
-                       ' -D' + module_name_caps + '_BuildTests:BOOL=' + opts.cmake_opts["make-tests"]
+        cmake_flags += ' -D' + module_name_caps + '_BuildTests:BOOL=' + opts.cmake_opts["make-tests"]
 
     for special_opt in specialized_options:
         if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool or \
@@ -705,7 +728,8 @@ def config( opts, module_dir, specialized_options = [] ):
                     cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
 
     print_color( "Configuring module: " + module_dir.name, "blue" )
-    cmd = mod_for_os( opts.cmake_cmd + ' -G"' + opts.cmake_opts['generator'] + '" ' + 
+    cmd = mod_for_os( opts.cmake_cmd + ' -G"' + opts.cmake_opts['generator'] + '" ' +
+                      '-A"' + opts.cmake_opts['architecture'] + '" ' +  
                       '-DCMAKE_INSTALL_PREFIX:PATH="' + module_dir.install_dir + '" ' + 
                       cmake_flags + ' "' + module_dir.module_dir + '" ' + log )
 

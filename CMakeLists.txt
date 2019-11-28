@@ -4,12 +4,11 @@ cmake_policy(SET CMP0048 NEW)
 project(DOFMANAGER VERSION 1.0.0 LANGUAGES CXX)
 
 # Options
-option(DOFMANAGER_BuildDev "Build the project in the dev folder. (intended for debugging this project by devs)" OFF)
 option(DOFMANAGER_BuildTests "Build the unit tests." OFF)
 
 # For debugging, print generator, compiler, and options
 message(STATUS "Gen: ${CMAKE_GENERATOR}, CXX: ${CMAKE_CXX_COMPILER_ID}, Mode: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Dev: ${DOFMANAGER_BuildDev}, Tests: ${DOFMANAGER_BuildTests}")
+message(STATUS "Tests: ${DOFMANAGER_BuildTests}")
 
 ##################
 # Checking input #
@@ -81,11 +80,6 @@ assign_source_group_FiniteElement()
 #################################
 # Add dev and unit test targets #
 #################################
-
-# Build dev
-if(DOFMANAGER_BuildDev)
-    add_subdirectory(dev)
-endif()
     
 # Build tests
 if(DOFMANAGER_BuildTests)

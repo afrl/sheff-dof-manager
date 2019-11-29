@@ -79,7 +79,18 @@ namespace dof_manager
         _UTIL_ASSERT_C(phase_ == DofMapPhase::ENRICHMENT,
             "This can only be called during an enrichment phase.");
 
-        ep_new_dof_to_old_rank_map_.push_back(original_sibling_dof);
+        // Make sure if the sibling dof is also a new dof that we map back
+        // to the old rank dof for the sibling
+        if (original_sibling_dof >= n_all_dofs_on_rank_)
+        {
+            const auto old_rank_dof =
+                ep_new_dof_to_old_rank_map_[original_sibling_dof - n_all_dofs_on_rank_];
+            ep_new_dof_to_old_rank_map_.push_back(old_rank_dof);
+        }
+        else
+        {
+            ep_new_dof_to_old_rank_map_.push_back(original_sibling_dof);
+        }
 
         const RankDofIndex new_rank_number =
             n_all_dofs_on_rank_ + static_cast<RankDofIndex>(ep_new_dof_to_old_rank_map_.size()) - 1;

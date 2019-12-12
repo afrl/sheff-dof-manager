@@ -6,6 +6,7 @@
 #include "flex_mesh/node/Node.h"
 #include "finite_element/FiniteElement.h"
 
+#include <map>
 #include <vector>
 
 namespace dof_manager
@@ -193,6 +194,33 @@ namespace dof_manager
             RankDofIndex new_rank_dof_start,
             ElementDofIndex n_new_dofs);
 
+        /// Mark that a dof should be combined into another during the next renumbering phase.
+        /// This should be relatively rare, but sometimes, a compatibility of two enrichments
+        /// will require combining dof's.  During the enrichment phase, either dof can be used
+        /// interchangably, and during renumbering, one will be combined into another.
+        ///
+        /// Restriction: For now, rank_dof_to_combine and rank_dof_to_combine_into must both
+        ///              be owned dof's. MPI communication will be needed for this to be relaxed.
+        ///
+        /// Proposal for combining dof's owned by different ranks.  Accumulate the combinations
+        /// into a vector<pair<RankDofIndex, RankDofIndex>> if rank_dof_to_combine and/or
+        /// rank_dof_to_combine_into is not owned.  After renumbering inserts new dof's then
+        /// eliminates owned dof's from combinations, add a new step where dof's are combined across
+        /// ranks.  Each rank will have to know about all combinations across rank boundaries to
+        /// ensure they can keep their maps up to date, but at least only the combinations across
+        /// ranks will be needed by all ranks (instead of all combinations internal to each rank).
+        /// Unfortunately, a global-to-rank map might be needed since a rank doens't know about
+        /// another rank's numbering.  But the global-to-rank map would only be needed in this
+        /// step and only really needed for ghosts since there is an implicit global-to-rank map
+        /// for owned dof's.
+        void combine_dofs(
+            RankDofIndex rank_dof_to_combine,
+            RankDofIndex rank_dof_to_combine_into);
+
+        /// This is mostly used for unit-testing
+        const std::pair<bool, RankDofIndex> is_dof_combined_into_another(
+            const RankDofIndex rank_dof_to_combine) const;
+
         // Something like this may eventually be implemented
         //LocalIndex add_element(const std::vector<GlobalIndex>& element_global_dofs);
 
@@ -204,6 +232,9 @@ namespace dof_manager
         /// vector.  A reference to this vector can be kept indefinitely by the
         /// sparse_linear_algebra::Vector class, though the vector will be empty
         /// outside of the enrichment phase.
+        ///
+        /// Note: this map does not know anything about combined dof's.  Combined
+        /// dof's will be incorporated into the numbering during the renumbering phase.
         const std::vector<RankDofIndex>& get_enrichment_new_dof_to_old_rank_map();
 
         ////////////////////////////
@@ -237,6 +268,8 @@ namespace dof_manager
         const std::string str() const;
 
     private:
+
+        using DofIndexDelta = int64_t;
 
         ///////////////////////
         // Common properties //
@@ -306,6 +339,14 @@ namespace dof_manager
 
         /// \see DofMap::get_new_dof_to_old_rank_map
         std::vector<RankDofIndex> ep_new_dof_to_old_rank_map_;
+        /// \see DofMap::combine_dofs
+        /// A dof to be combined into another is a 1-to-1 relationship.
+        std::map<RankDofIndex, RankDofIndex> ep_dof_to_combine_map_;
+        /// The opposite of ep_dof_to_combine_map_, allowing looking up if a given dof is being
+        /// combined into.  The key of this structure is the dof being combined into, and the value
+        /// is a dof being combined.  There can be multiple dof's combined into a single dof, so
+        /// a multimap is used.
+        std::multimap<RankDofIndex, RankDofIndex> ep_dof_combined_into_map_;
 
         //////////////////////////////////
         // Renumbering phase properties //
@@ -319,7 +360,19 @@ namespace dof_manager
         ////////////////////
 
         void enumerate_dofs();
-        void renumber_dofs();
+        /// Renumbers dof's to accommodate new dof's that were added via calls
+        /// to add_new_dof()
+        void renumber_dofs_for_enrichment();
+        /// Renumbers dof's to remove dof's that were denoted to be combined via
+        /// a call to combine_dofs()
+        void renumber_dofs_for_combination();
+
+        inline const bool is_rank_dof_owned(
+            const RankDofIndex& dof) const
+        {
+            return (dof >= n_lower_ghost_dofs_ && dof < n_lower_ghost_dofs_ + n_owned_dofs_)
+                || dof >= n_all_dofs_on_rank_;
+        }
 
         inline const bool is_global_dof_owned(
             const GlobalDofIndex& dof) const

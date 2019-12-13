@@ -173,6 +173,7 @@ class MakeOptions:
         # set defaults there.
         if (os.name == "posix"):
             self.cmake_opts['generator'] = "Unix Makefiles"
+            self.cmake_opts['architecture'] = ""
         self.special_cmake_opts = {}
 
         # Build options
@@ -709,6 +710,10 @@ def config( opts, module_dir, specialized_options = [] ):
     if( opts.verbose ):
         vflag = " --verbose "
 
+    cmake_arch_flag = ''
+    if opts.cmake_opts['architecture'] != '':
+        cmake_arch_flag =  '-A"' + opts.cmake_opts['architecture'] + '" '
+
     cmake_flags = " -DCMAKE_BUILD_TYPE=" + opts.cmake_opts["build-type"] + " -j " + str( opts.n_jobs ) + vflag
 
     if module_dir.module_type != ModuleType.ThirdParty:
@@ -728,8 +733,7 @@ def config( opts, module_dir, specialized_options = [] ):
                     cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
 
     print_color( "Configuring module: " + module_dir.name, "blue" )
-    cmd = mod_for_os( opts.cmake_cmd + ' -G"' + opts.cmake_opts['generator'] + '" ' +
-                      '-A"' + opts.cmake_opts['architecture'] + '" ' +  
+    cmd = mod_for_os( opts.cmake_cmd + ' -G"' + opts.cmake_opts['generator'] + '" ' + cmake_arch_flag +  
                       '-DCMAKE_INSTALL_PREFIX:PATH="' + module_dir.install_dir + '" ' + 
                       cmake_flags + ' "' + module_dir.module_dir + '" ' + log )
 

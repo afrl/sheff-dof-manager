@@ -1,5 +1,7 @@
 #include "UnitTests.h"
 
+using namespace dof_manager;
+
 int main(int argc, char** argv)
 {
     utility::MPIUtils::init(&argc, &argv);

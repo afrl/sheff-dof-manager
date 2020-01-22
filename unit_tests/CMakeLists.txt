@@ -19,7 +19,7 @@ foreach(_test ${_unit_tests})
   get_filename_component(_category ${_dir} NAME)
 
   # Create executable
-  STRING(REPLACE ".cpp" "" _name DOFMANAGER_TEST_${_name}) 
+  STRING(REPLACE ".cpp" "" _name ${_category}_${_name})   # test name prefixed with category
   add_executable(${_name} ${_test})
   set_property(TARGET ${_name} PROPERTY FOLDER unit_tests)
   target_link_libraries(${_name} PRIVATE DofManager::DofManager)
@@ -28,9 +28,9 @@ foreach(_test ${_unit_tests})
   assign_source_group("dof_manager" ${DOFMANAGER_HEADER_LIST})
 
   # Create test
-  add_test(NAME "Unit_${_category}_${_name}"        # test name prefixed with Unit and category
-    COMMAND ${_name}                         # test executable
-    WORKING_DIRECTORY ${TEST_WORKDIR}        # directory to call program from and write output to
+  add_test(NAME "Unit_DofManager_${_name}"   # test name prefixed with Unit and project
+    COMMAND ${_name}                              # test executable
+    WORKING_DIRECTORY ${TEST_WORKDIR}             # directory to call program from and write output to
     )
   list(APPEND test_list "${_name}")
 endforeach()

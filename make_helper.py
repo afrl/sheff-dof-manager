@@ -157,6 +157,7 @@ class MakeOptions:
         self.doc = False
         self.clear_cache = False
         self.clean = False
+        self.clean_toolchain = False
         self.copy_make = False
         # Store cmake cmd, since on some linux installs it is cmake3
         self.cmake_cmd = "cmake"
@@ -164,11 +165,10 @@ class MakeOptions:
 
         # The CMake options are saved to a dictionary so they can be reloaded.
         self.cmake_opts = {
-            "generator": "Visual Studio 15 2017 Win64",
+            "generator": "Visual Studio 15 2017",
             "architecture": "x64",
             "toolset" : "",
             "build-type": "Debug",
-            "make-dev": "OFF",
             "make-tests": "OFF" }
         # Note: this default should never get used due to find_generator()
         # set defaults there.
@@ -436,16 +436,12 @@ def parse_options( specialized_options = [] ):
     config_group.add_argument('--generator', default='', action='store',
                               choices=('VS2015', 'VS2017', 'VS2019',
                                        'make', 'codeblocks'),
-                              help='Specify the CMake generator to use.  Default is `VS2017` (Visual Studio 15 2017 Win64) for windows and `make` (Unix Makefiles) for linux')
+                              help='Specify the CMake generator to use.  Default is `VS2017` (Visual Studio 15 2017) for windows with x64 architecture and `make` (Unix Makefiles) for linux')
     config_group.add_argument('--toolset', default='', action='store',
-                              choices=('Intel18'),
+                              choices=('Intel17','Intel18'),
                               help='Specify Intel toolset for use with Visual Studio. Default is the native toolset (MSVC)')
     config_group.add_argument(
         '--release', action='store_true', help='Build in release mode (debug is default)')
-    config_group.add_argument(
-        '--make-dev', action='store_true', help='Build the dev projects')
-    config_group.add_argument(
-        '--nomake-dev', action='store_true')
     config_group.add_argument(
         '--make-tests', action='store_true', help='Build the submodule unit-tests')
     config_group.add_argument(
@@ -559,10 +555,6 @@ def parse_options( specialized_options = [] ):
                 opts.cmake_opts['toolset'] = '-T"Intel C++ Compiler 18.0",host=x64'
     if args.release:
         opts.cmake_opts['build-type'] = 'Release'
-    if args.make_dev:
-        opts.cmake_opts['make-dev'] = 'ON'
-    if args.nomake_dev:
-        opts.cmake_opts['make-dev'] = 'OFF'
     if args.make_tests:
         opts.cmake_opts['make-tests'] = 'ON'
     if args.nomake_tests:
@@ -597,6 +589,8 @@ def parse_options( specialized_options = [] ):
             opts.include_first_party = True
             opts.include_second_party = True
             opts.include_third_party = True
+        if args.all and args.clean:
+            opts.clean_toolchain = True
         if args.first_party:
             opts.include_first_party = True
         if args.second_party:
@@ -748,7 +742,7 @@ def config( opts, module_dir, specialized_options = [] ):
 
     print_color( "Configuring module: " + module_dir.name, "blue" )
     cmd = mod_for_os( opts.cmake_cmd + ' -G"' + opts.cmake_opts['generator'] + '" ' + cmake_arch_flag +
-                      opts.cmake_opts['toolset'] +  
+                      opts.cmake_opts['toolset'] + ' --no-warn-unused-cli ' +  
                       ' -DCMAKE_INSTALL_PREFIX:PATH="' + module_dir.install_dir + '" ' + 
                       cmake_flags + ' "' + module_dir.module_dir + '" ' + log )
 
@@ -776,6 +770,10 @@ def config( opts, module_dir, specialized_options = [] ):
 #####################################################################################
 
 def build( opts, module_dir ):
+
+    # toolchain is config-only
+    if (module_dir.name == "toolchain"):
+        return; 
 
     os.chdir( module_dir.build_dir )
 
@@ -977,6 +975,18 @@ def make( specialized_opts, build_order=[] ):
     if opts.clear_cache:
         clear_cache( selected_modules )
 
+    if (opts.clean_toolchain and (os.name == "posix")):
+        # Clean current toolchain dir. If toolchain was used to config before building third party,
+        # this should be a symbolic link to the compiler-specific dir. Otherwise, it is just a dir.
+        toolchain_dir = os.path.join(os.path.expanduser("~"), ".cmake", "packages") 
+        if os.path.exists(toolchain_dir):
+            if os.path.islink(toolchain_dir):
+                link_path = os.readlink(toolchain_dir)
+                os.remove(toolchain_dir)
+                shutil.rmtree(link_path) 
+            else:
+                shutil.rmtree(toolchain_dir)
+
     if opts.clean:
         clean( selected_modules, opts )
 
@@ -989,7 +999,6 @@ def make( specialized_opts, build_order=[] ):
         Config_InputSchema_H ( opts.root_build_dir ) 
 
     if opts.config:
-
         for module_dir in selected_modules:
             config( opts, module_dir, specialized_opts )
             if opts.build:

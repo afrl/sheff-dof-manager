@@ -4,9 +4,10 @@
 
 #include "flex_mesh/algorithms/Creation.h"
 #include "flex_mesh/algorithms/UnitElements.h"
-#include "finite_element/elasticity/InfinitesimalStrain.h"
-#include "constitutive/elasticity/LinearElasticProperties.h"
-#include "constitutive/elasticity/LinearElasticityConstitutiveRelation.h"
+
+#include "finite_element/Factory.h"
+
+#include "constitutive/field/deformation/linear_elasticity/LinearElasticProperties.h"
 #include "utility/MPIUtils.h"
 
 #include <array>
@@ -27,7 +28,6 @@ namespace dof_manager
     {
         dof_manager::DofMap::MeshType mesh;
         constitutive::LinearElasticProperties properties;
-        constitutive::LinearElasticityConstitutiveRelation constitutive_relation;
         std::unique_ptr<finite_element::ElementWorkspace> workspace_ptr;
 
         UnitTestDataStructures(
@@ -40,15 +40,14 @@ namespace dof_manager
                 false);
 
             properties.set_isotropic_E_nu(1e9, 0.3);
-            constitutive_relation.set_elastic_properties(properties);
 
             workspace_ptr = std::make_unique<finite_element::ElementWorkspace>();
             for (auto& e_ptr : mesh.elements())
             {
-                auto formulation = std::make_unique<finite_element::InfinitesimalStrainFormulation>(e_ptr.get());
-                e_ptr->set_formulation(std::move(formulation));
-                e_ptr->set_constitutive_relation(&constitutive_relation);
-                e_ptr->set_workspace(workspace_ptr.get());
+                finite_element::Factory::get().assign_field_models(
+                    *e_ptr,
+                    "InfinitesimalStrain",
+                    properties);
                 e_ptr->allocate_isvs();
             }
         }

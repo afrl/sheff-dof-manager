@@ -3,8 +3,6 @@
 #include "utility/MPIUtils.h"
 #include "utility/Range.h"
 
-#include "finite_element/BaseFormulation.h"
-
 namespace dof_manager
 {
     DofMap::DofMap(const MeshType & mesh)
@@ -330,7 +328,7 @@ namespace dof_manager
     {
         // For now, assume each node has the same number of DoF's at the start of the analysis.
         // This algorithm will have to be generalized if this is not the case.
-        auto initial_dofs_per_node = mesh_.elements().front()->get_formulation_const().get_n_dofs_per_node();
+        auto initial_dofs_per_node = mesh_.elements().front()->get_n_dofs_per_point();
 
         element_to_rank_maps_.resize(mesh_.elements().size(), nullptr);
         element_n_dofs_.resize(mesh_.elements().size(), 0);

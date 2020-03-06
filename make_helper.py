@@ -154,6 +154,7 @@ class MakeOptions:
         self.config = False
         self.build = False
         self.run_tests = False
+        self.list_tests = False
         self.doc = False
         self.clear_cache = False
         self.clean = False
@@ -182,6 +183,8 @@ class MakeOptions:
         self.n_jobs = "1"
         self.print_cmd = False
         self.dir_suffix = ""
+        self.test_num = None
+        self.test_name = None
         if os.name == 'nt':
             self.shell_executable = None
         else:
@@ -259,6 +262,7 @@ class MakeOptions:
         print( "  config: ",           self.config )
         print( "  build: ",            self.build )
         print( "  run_tests: ",        self.run_tests )
+        print( "  list_tests: ",       self.list_tests )
         print( "  doc: ",              self.doc )
         print( "  clear_cache: ",      self.clear_cache )
         print( "  clean: ",            self.clean )
@@ -268,6 +272,8 @@ class MakeOptions:
         print( "  n_jobs: ",           self.n_jobs )
         print( "  print_cmd: ",        self.print_cmd )
         print( "  dir_suffix: ",       self.dir_suffix )
+        print( "  test_num: ",         self.test_num )
+        print( "  test_name: ",        self.test_name )
 
         if self.root_module_type == ModuleType.TopLevel:
             print( "  TopLevelModule fields:\n" )
@@ -423,6 +429,8 @@ def parse_options( specialized_options = [] ):
     command_group.add_argument(
         '--test', action='store_true', help='Run unit tests (requires --make-tests to build tests)')
     command_group.add_argument(
+        '--list', action='store_true', help='Print list of tests to select for build or test') 
+    command_group.add_argument(
         '--doc', action='store_true', help='Generate the doxygen documentation')
     command_group.add_argument(
         '--clear-cache', action='store_true', help='Clear the CMake cache files and saved config options')
@@ -485,6 +493,12 @@ def parse_options( specialized_options = [] ):
                             Specify a build/install suffix, e.g., --dir=gnu, then build dir = build_gnu \
                             and install dir = install_dir_gnu. This option must come BEFORE any other \
                             config options')
+    misc_group.add_argument('-n', type=int, dest='test_num', default=0, help='Select a single test by number (see --list) \
+                            to build or test')
+    misc_group.add_argument('--name', dest='test_name', default='', help='Select a single test by name to build or test. \
+                            String value is case-sensitive and overridden by -n if both used. For build target, do not \
+                            include test type (Unit|Regression) or module name. For test target, all tests with the given \
+                            substring will be executed.')
     misc_group.add_argument('--shell-executable', default='',
                             help='Overrides the default shell for child processes.')                     
 
@@ -515,6 +529,8 @@ def parse_options( specialized_options = [] ):
         opts.build = True
     if args.test:
         opts.run_tests = True
+    if args.list:
+        opts.list_tests = True
     if args.clear_cache:
         opts.clear_cache = True
     if args.clean:
@@ -611,6 +627,12 @@ def parse_options( specialized_options = [] ):
 
         opts.print()
         print( module_info )
+   
+    # Can't select both num and name
+    if args.test_num:
+        opts.test_num = args.test_num
+    elif args.test_name:
+        opts.test_name = args.test_name
 
     if args.shell_executable:
         opts.shell_executable = args.shell_executable
@@ -775,7 +797,11 @@ def build( opts, module_dir ):
     if (module_dir.name == "toolchain"):
         return; 
 
-    os.chdir( module_dir.build_dir )
+    if os.path.exists( module_dir.build_dir):
+        os.chdir( module_dir.build_dir )
+    else:
+        print("===Warning: Cannot build before config")
+        return
 
     write_log = module_dir.module_dir != opts.root_module_dir
     #if write_log:
@@ -792,7 +818,26 @@ def build( opts, module_dir ):
     if( opts.verbose ):
         vflag = " --verbose "
 
+    # Standard build command 
     cmd = mod_for_os( opts.cmake_cmd + ' --build . --target install -j ' + str( opts.n_jobs ) + vflag + log )
+
+    # Alternatively, if a single test is requested, we modify this commmand for that test. On Linux, this uses GNU make
+    # as the make program. On Windows, could use nmake, but for now we just assume linux...
+    if opts.test_num:
+        # In this case, check that we've already built so can get corresponding test name. Even if we haven't built
+        # yet, the code below should return a blank target and thus build all 
+        if os.path.exists( os.path.join(module_dir.build_dir,"build.log")):
+            # Then get name from test list 
+            get_test_list = opts.ctest_cmd + " -N -I "+str(opts.test_num)+","+str(opts.test_num)
+            test_str = subprocess.check_output(get_test_list.split())
+            test_str = test_str.decode( 'ascii' ).split('\n')[1]
+            proj_name = (module_dir.name).replace('_', ' ').title().replace(' ', '')
+            pos = test_str.find(proj_name)
+            target=test_str[pos+len(proj_name)+1:]
+            cmd = mod_for_os( 'make ' + target + log )
+    elif opts.test_name:
+        # Otherwise, named targets still work, and will build dependencies
+        cmd = mod_for_os( 'make ' + opts.test_name + log )
 
     if( opts.print_cmd ):
         print_color( cmd, "cyan" )
@@ -807,22 +852,57 @@ def build( opts, module_dir ):
 
 #####################################################################################
 
-def test(opts, selected_modules_dirs):
+def test( opts, selected_modules_dirs ):
 
     vflag = ""
     if( opts.verbose ):
         vflag = " --verbose "
 
     for module_dir in selected_modules_dirs:
-        os.chdir(module_dir.build_dir)
 
-        print_color("Testing----------------" + module_dir.name, "blue")
+        print_color( "\n------------------------------------------------------", "blue" )
+        print_color( "---- Testing: " + module_dir.name, "blue" )
+        print_color( "", "blue" )
+
+        if os.path.exists( os.path.join(module_dir.build_dir,"build.log") ):
+            os.chdir(module_dir.build_dir)
+        else:
+            print("===Warning: Cannot test before build")
+            continue
+
         cmd = mod_for_os( opts.ctest_cmd + ' ' + vflag + ' -C ' + opts.cmake_opts["build-type"] + ' -j ' + str(opts.n_jobs))
+        if opts.test_num:
+            cmd += " -I "+str(opts.test_num)+","+str(opts.test_num)
+        elif opts.test_name:
+            cmd += " -R "+opts.test_name
+
+        test_flag = subprocess.call(cmd, shell = True, executable=opts.shell_executable)
+
+        if( test_flag != 0 ):
+            print_color("===ERROR during unit testing", "red")
+
+#####################################################################################
+
+def list_tests( opts, selected_modules_dirs ):
+
+    vflag = ""
+    if( opts.verbose ):
+        vflag = " --verbose "
+
+    for module_dir in selected_modules_dirs:
+        print_color("Test List----------------" + module_dir.name, "blue")
+        if os.path.exists( os.path.join(module_dir.build_dir,"build.log")):
+            os.chdir(module_dir.build_dir)
+        else:
+            print("===Warning: Cannot list tests before build")
+            continue
+
+        cmd = mod_for_os( opts.ctest_cmd + ' -N')
 
         test_flag = subprocess.call(cmd, shell = True, executable=opts.shell_executable)
 
         if (test_flag != 0):
-            print_color("===ERROR during unit testing", "red")
+            print_color("===ERROR during list testing", "red")
 
 #####################################################################################
 
@@ -1009,11 +1089,14 @@ def make( specialized_opts, build_order=[] ):
         build( opts, module_dir )
 
     if opts.run_tests:
-        test(opts, selected_modules)
+        test( opts, selected_modules )
+
+    if opts.list_tests:
+        list_tests( opts, selected_modules )
 
     if module_info.root_module_type == ModuleType.TopLevel:
-      if opts.copy_make:
-        copy_make(opts, selected_modules)
+        if opts.copy_make:
+            copy_make( opts, selected_modules )
 
 #####################################################################################
 

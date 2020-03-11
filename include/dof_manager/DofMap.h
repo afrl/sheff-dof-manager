@@ -175,7 +175,7 @@ namespace dof_manager
         ///       However, atomic operations could be implemented in the future.
         /// Note: if new DoF's need to be added for other reasons than XFEM, then
         ///       another version of add_new_dof should be created.
-        const RankDofIndex add_new_dof(
+        RankDofIndex add_new_dof(
             const RankDofIndex original_sibling_dof);
 
         /// Assign a new set of DoF's to an existing element, enriching the number DoF's
@@ -367,14 +367,14 @@ namespace dof_manager
         /// a call to combine_dofs()
         void renumber_dofs_for_combination();
 
-        inline const bool is_rank_dof_owned(
+        inline bool is_rank_dof_owned(
             const RankDofIndex& dof) const
         {
             return (dof >= n_lower_ghost_dofs_ && dof < n_lower_ghost_dofs_ + n_owned_dofs_)
                 || dof >= n_all_dofs_on_rank_;
         }
 
-        inline const bool is_global_dof_owned(
+        inline bool is_global_dof_owned(
             const GlobalDofIndex& dof) const
         {
             return dof >= owned_global_dof_begin_ && dof < owned_global_dof_end_;

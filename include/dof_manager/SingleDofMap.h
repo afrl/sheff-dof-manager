@@ -16,19 +16,19 @@ namespace dof_manager
         {
         }
 
-        inline const RankDofIndex* const begin() const
+        inline const RankDofIndex* begin() const
         {
             return to_rank_map_;
         }
-        inline const RankDofIndex* const end() const
+        inline const RankDofIndex* end() const
         {
             return &to_rank_map_[n_dofs_];
         }
-        inline const RankDofIndex operator[](const ElementDofIndex i) const
+        inline RankDofIndex operator[](const ElementDofIndex i) const
         {
             return to_rank_map_[i];
         }
-        inline const ElementDofIndex size() const
+        inline ElementDofIndex size() const
         {
             return n_dofs_;
         }

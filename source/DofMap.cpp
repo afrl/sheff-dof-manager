@@ -71,7 +71,7 @@ namespace dof_manager
         ep_new_dof_to_old_rank_map_.clear();
     }
 
-    const RankDofIndex DofMap::add_new_dof(
+    RankDofIndex DofMap::add_new_dof(
         const RankDofIndex original_sibling_dof)
     {
         _UTIL_ASSERT_C(phase_ == DofMapPhase::ENRICHMENT,

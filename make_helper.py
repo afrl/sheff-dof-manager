@@ -965,22 +965,20 @@ def Config_BSAMXX_Version_H( mod_info, shell_executable ):
 
 def Config_InputSchema_H( mod_dir ):
 
-    top_dir = os.getcwd()
-
-    with open(os.path.join(top_dir, "include", "parser", "InputSchema.h.in"), 'r') as header_template:
+    with open(os.path.join(mod_dir, "include", "parser", "InputSchema.h.in"), 'r') as header_template:
         header_str = header_template.read()
    
     # Warn not to modify updated .h file 
     header_str = header_str.replace( '${OVERWRITE_WARNING}', "DO NOT MODIFY. Automatically configured from InputSchema.h.in" )
 
     # Get contents of json schema file
-    with open(os.path.join(top_dir, "include", "parser", "main_schema.json"), 'r') as s_file:
+    with open(os.path.join(mod_dir, "include", "parser", "main_schema.json"), 'r') as s_file:
         schema = s_file.read()
 
     header_str = header_str.replace('${MAIN_SCHEMA}', schema)
 
     # Finally write the full string to the header file
-    with open(os.path.join(top_dir, "include", "parser", "InputSchema.h"), 'w') as header_file:
+    with open(os.path.join(mod_dir, "include", "parser", "InputSchema.h"), 'w') as header_file:
         header_file.write( header_str )
 
 
@@ -1070,13 +1068,19 @@ def make( specialized_opts, build_order=[] ):
     if opts.clean:
         clean( selected_modules, opts )
 
-    if ( opts.root_module_type == ModuleType.TopLevel ) and ( opts.config or opts.build or opts.doc ):
-        # First update the bsamxx_version.h header
-        Config_BSAMXX_Version_H( module_info, opts.shell_executable )
+    # If config, build, or doc: create the two needed headers from .h.in files
+    if ( opts.config or opts.build or opts.doc ): 
+   
+        if ( opts.root_module_type == ModuleType.TopLevel ):
+            # First update the bsamxx_version.h header
+            Config_BSAMXX_Version_H( module_info, opts.shell_executable )
 
-    if ( module_info.root_module_name == "parser" ) and ( opts.config or opts.build or opts.doc ): 
-        # First update the InputSchema.h header from main_schema.json
-        Config_InputSchema_H ( opts.root_build_dir ) 
+            # Also have parser module create its schema header
+            Config_InputSchema_H ( os.path.join( opts.root_module_dir, "modules", "parser" ) ) 
+
+        elif ( module_info.root_module_name == "parser" ): 
+            # Update the InputSchema.h header from main_schema.json
+            Config_InputSchema_H ( opts.root_module_dir ) 
 
     if opts.config:
         for module_dir in selected_modules:
@@ -1112,3 +1116,7 @@ specialized_opts = [
 
 make_helper.make( specialized_opts )
 """
+
+# Execute main on initial import or script call:
+if __name__=="__main__":
+   print("Don't call this file directly, use make.py instead") 

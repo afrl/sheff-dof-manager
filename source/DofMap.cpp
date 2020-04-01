@@ -326,6 +326,8 @@ namespace dof_manager
 
     void DofMap::enumerate_dofs()
     {
+        auto local_rank = utility::MPIUtils::get_local_rank();
+
         // For now, assume each node has the same number of DoF's at the start of the analysis.
         // This algorithm will have to be generalized if this is not the case.
         auto initial_dofs_per_node = mesh_.elements().front()->get_n_dofs_per_point();
@@ -355,7 +357,7 @@ namespace dof_manager
                 n_higher_ghost_dofs_ += initial_dofs_per_node;
             }
         }
-        n_all_dofs_on_rank_ = n_lower_ghost_dofs_ + n_owned_dofs_ + n_all_dofs_on_rank_;
+        n_all_dofs_on_rank_ = n_lower_ghost_dofs_ + n_owned_dofs_ + n_higher_ghost_dofs_;
 
         // Create the initial node-to-rank maps and rank-to-global map
         // When creating the rank to global map, it is assumed that the node

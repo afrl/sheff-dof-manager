@@ -965,20 +965,20 @@ def Config_BSAMXX_Version_H( mod_info, shell_executable ):
 
 def Config_InputSchema_H( mod_dir ):
 
-    with open(os.path.join(mod_dir, "include", "parser", "InputSchema.h.in"), 'r') as header_template:
+    with open(os.path.join(mod_dir, "include", "parser", "script_to_json", "InputSchema.h.in"), 'r') as header_template:
         header_str = header_template.read()
    
     # Warn not to modify updated .h file 
     header_str = header_str.replace( '${OVERWRITE_WARNING}', "DO NOT MODIFY. Automatically configured from InputSchema.h.in" )
 
     # Get contents of json schema file
-    with open(os.path.join(mod_dir, "include", "parser", "main_schema.json"), 'r') as s_file:
+    with open(os.path.join(mod_dir, "include", "parser", "script_to_json", "main_schema.json"), 'r') as s_file:
         schema = s_file.read()
 
     header_str = header_str.replace('${MAIN_SCHEMA}', schema)
 
     # Finally write the full string to the header file
-    with open(os.path.join(mod_dir, "include", "parser", "InputSchema.h"), 'w') as header_file:
+    with open(os.path.join(mod_dir, "include", "parser", "script_to_json", "InputSchema.h"), 'w') as header_file:
         header_file.write( header_str )
 
 

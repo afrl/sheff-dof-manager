@@ -449,7 +449,7 @@ namespace dof_manager
         {
             owned_global_dof_begin_ += n_owned_dofs_by_rank[rank];
         }
-        owned_global_dof_end_ = owned_global_dof_begin_ + n_owned_dofs_;
+        owned_global_dof_end_ = owned_global_dof_begin_ + n_owned_dofs_ - 1;
 
         n_global_dofs_ = 0;
         for (auto n_owned_dofs_for_rank : n_owned_dofs_by_rank)

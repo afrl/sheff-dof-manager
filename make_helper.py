@@ -449,7 +449,8 @@ def parse_options( specialized_options = [] ):
                               choices=('Intel17','Intel18'),
                               help='Specify Intel toolset for use with Visual Studio. Default is the native toolset (MSVC)')
     config_group.add_argument(
-        '--release', action='store_true', help='Build in release mode (debug is default)')
+        '--mode', type=str, choices=('Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel'),
+        default='debug', help='Set the mode to build (debug is default)')
     config_group.add_argument(
         '--make-tests', action='store_true', help='Build the submodule unit-tests')
     config_group.add_argument(
@@ -569,8 +570,7 @@ def parse_options( specialized_options = [] ):
         if 'Visual Studio' in opts.cmake_opts['generator']:
             if args.toolset == 'Intel18':
                 opts.cmake_opts['toolset'] = '-T"Intel C++ Compiler 18.0",host=x64'
-    if args.release:
-        opts.cmake_opts['build-type'] = 'Release'
+    opts.cmake_opts['build-type'] = args.mode
     if args.make_tests:
         opts.cmake_opts['make-tests'] = 'ON'
     if args.nomake_tests:
@@ -819,7 +819,7 @@ def build( opts, module_dir ):
         vflag = " --verbose "
 
     # Standard build command 
-    cmd = mod_for_os( opts.cmake_cmd + ' --build . --target install -j ' + str( opts.n_jobs ) + vflag + log )
+    cmd = mod_for_os( opts.cmake_cmd + ' --build . --config ' + opts.cmake_opts["build-type"] + ' --target install -j ' + str( opts.n_jobs ) + vflag + log )
 
     # Alternatively, if a single test is requested, we modify this commmand for that test. On Linux, this uses GNU make
     # as the make program. On Windows, could use nmake, but for now we just assume linux...

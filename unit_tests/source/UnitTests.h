@@ -42,13 +42,14 @@ namespace dof_manager
             properties.set_isotropic_E_nu(1e9, 0.3);
 
             workspace_ptr = std::make_unique<finite_element::ElementWorkspace>();
+            simple_math::Quadrature quadrature;
             for (auto& e_ptr : mesh.elements())
             {
                 finite_element::Factory::get().assign_field_models(
                     *e_ptr,
                     "InfinitesimalStrain",
                     properties);
-                e_ptr->allocate_isvs();
+                e_ptr->allocate_isvs(quadrature);
             }
         }
     };

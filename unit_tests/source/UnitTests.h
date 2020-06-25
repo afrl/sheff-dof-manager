@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dof_manager/DofMap.h"
+#include "dof_manager/DofManager.h"
 
 #include "flex_mesh/algorithms/Creation.h"
 #include "flex_mesh/algorithms/UnitElements.h"
@@ -26,14 +26,14 @@ namespace dof_manager
 
     struct UnitTestDataStructures
     {
-        dof_manager::DofMap::MeshType mesh;
+        dof_manager::MeshType mesh;
         constitutive::LinearElasticProperties properties;
         std::unique_ptr<finite_element::ElementWorkspace> workspace_ptr;
 
         UnitTestDataStructures(
             const std::array<int, 3> n_elements_along_axes)
         {
-            mesh = flex_mesh::make_grid<dof_manager::DofMap::MeshType>(
+            mesh = flex_mesh::make_grid<dof_manager::MeshType>(
                 unit_linspace(n_elements_along_axes[0] + 1),
                 unit_linspace(n_elements_along_axes[1] + 1),
                 unit_linspace(n_elements_along_axes[2] + 1),

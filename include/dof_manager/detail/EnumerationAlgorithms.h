@@ -96,11 +96,5 @@ namespace dof_manager
         /// to be updated, this is essentially a map from the indices after sorting to the indices
         /// before sorting.
         std::vector<std::size_t> sort_intervals(DofMap& dof_map);
-
-        /// A method for debugging that checks the DoF maps to ensure each rank numbers the nodes
-        /// consistently.
-        void verify_maps(
-            const MeshType& mesh,
-            const DofMap& dof_map);
     }
 }

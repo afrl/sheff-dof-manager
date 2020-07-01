@@ -1,4 +1,4 @@
-#include "dof_manager/RenumberingAlgorithm.h"
+#include "dof_manager/detail/EnumerationAlgorithms.h"
 
 #include "dof_manager/DofRanges.h"
 #include "dof_manager/ElementScatterMap.h"
@@ -936,28 +936,6 @@ namespace dof_manager
             }
 
             return backward_permutation_indices;
-        }
-
-        void verify_maps(const MeshType& mesh, const DofMap& dof_map)
-        {
-            // For now, assume each node has the same number of DoF's at the start of the analysis.
-            // This algorithm will have to be generalized if this is not the case.
-            auto initial_dofs_per_node = mesh.elements().front()->get_n_dofs_per_point();
-
-            std::vector<std::vector<GlobalDofIndex>> local_node_to_global_dofs_map;
-            for (auto local_element_number : utility::range_from_zero(dof_map.element_to_rank_maps.size()))
-            {
-                auto& element = *mesh.elements()[local_element_number];
-                auto& element_to_rank_map = dof_map.element_to_rank_maps[local_element_number];
-                auto n_dofs = dof_map.element_n_dofs[local_element_number];
-                assert(n_dofs / element.get_num_nodes() == initial_dofs_per_node);
-
-                for (auto i : utility::range_from_zero(element.get_num_nodes()))
-                {
-                    element_to_rank_map[i];
-                }
-            }
-            //utility::MPIUtils::all_gather_arrays_by_rank();
         }
     }
 }

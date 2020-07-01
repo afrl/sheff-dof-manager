@@ -1,4 +1,4 @@
-#include "dof_manager/RenumberingAlgorithm.h"
+#include "dof_manager/detail/EnumerationAlgorithms.h"
 #include "dof_manager/DofManager.h"
 #include "utility/MPIUtils.h"
 

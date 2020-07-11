@@ -130,6 +130,29 @@ namespace dof_manager
                 }
             }
 
+            // I am adding this check to help diagnose what is going wrong, but
+            // consider phasing this out for the assert later.
+            std::vector<RankDofIndex> uninitialized_rank_dofs;
+            for (auto i : utility::indices(dof_map.rank_to_global_map))
+            {
+                if (dof_map.rank_to_global_map[i] != std::numeric_limits<GlobalDofIndex>::max())
+                {
+                    uninitialized_rank_dofs.push_back(i);
+                }
+            }
+            if (!uninitialized_rank_dofs.empty())
+            {
+                std::cout << "Rank " << utility::MPIUtils::get_local_rank() <<
+                    " had the following uninitialized dofs: ";
+                for (auto& i : uninitialized_rank_dofs)
+                {
+                    std::cout << i << " ";
+                }
+                std::cout << std::endl;
+            }
+
+            // This prevents the check for release mode, but for now
+            // use a universal check.
             assert(std::none_of(
                 dof_map.rank_to_global_map.begin(),
                 dof_map.rank_to_global_map.end(),

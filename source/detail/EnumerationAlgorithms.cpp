@@ -864,22 +864,21 @@ namespace dof_manager
             for (auto local_element_number : utility::range_from_zero(dof_map.element_to_rank_maps.size()))
             {
                 auto& element_to_rank_map = dof_map.element_to_rank_maps[local_element_number];
-                if (local_element_number < dof_map.n_owned_elements)
+                for (auto i : utility::range_from_zero(dof_map.element_n_dofs[local_element_number]))
                 {
-                    for (auto i : utility::range_from_zero(dof_map.element_n_dofs[local_element_number]))
+                    auto& rank_index = element_to_rank_map[i];
+                    auto& global_index = dof_map.rank_to_global_map[rank_index];
+                    if (global_index >= dof_map.owned_global_dof_begin &&
+                        global_index <= dof_map.owned_global_dof_end)
                     {
-                        auto& rank_index = element_to_rank_map[i];
-                        auto& global_index = dof_map.rank_to_global_map[rank_index];
-                        if (global_index >= dof_map.owned_global_dof_begin &&
-                            global_index <= dof_map.owned_global_dof_end)
-                        {
-                            dof_types_map[rank_index] = DofType::OWNED;
-                        }
-                        else
-                        {
-                            dof_types_map[rank_index] = DofType::LOCAL_GHOST;
-                        }
+                        dof_types_map[rank_index] = DofType::OWNED;
                     }
+                    else if (local_element_number < dof_map.n_owned_elements)
+                    { // If the ghost appears in the owned element, then it is a local ghost
+                        dof_types_map[rank_index] = DofType::LOCAL_GHOST;
+                    }
+                    // else is not needed since it the value was initialized to EXCLUSIVE_GHOST
+                    // from the outset.
                 }
             }
 

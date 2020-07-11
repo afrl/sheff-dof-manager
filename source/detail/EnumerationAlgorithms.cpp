@@ -135,7 +135,7 @@ namespace dof_manager
             std::vector<RankDofIndex> uninitialized_rank_dofs;
             for (auto i : utility::indices(dof_map.rank_to_global_map))
             {
-                if (dof_map.rank_to_global_map[i] != std::numeric_limits<GlobalDofIndex>::max())
+                if (dof_map.rank_to_global_map[i] == std::numeric_limits<GlobalDofIndex>::max())
                 {
                     uninitialized_rank_dofs.push_back(i);
                 }

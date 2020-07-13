@@ -1,5 +1,6 @@
 #include "dof_manager/NodeScatterMap.h"
 
+#include "dof_manager/ScatterMapDestBuilder.h"
 #include "utility/MPIUtils.h"
 
 namespace dof_manager
@@ -44,8 +45,19 @@ namespace dof_manager
     {
         const auto this_rank = utility::MPIUtils::get_local_rank();
 
-        destination_ranks = element_scatter_map.destination_ranks;
-        source_ranks = element_scatter_map.source_ranks;
+        // The node scatter map does not neccessary have the same source/dest ranks for exchanging
+        // information.  It is possible that a rank has a node from a specific rank but not an
+        // element. So build the correct maps through MPI communication.
+        ScatterMapDestBuilder dest_builder;
+        for (auto& n_ptr : mesh.nodes())
+        {
+            if (n_ptr->get_parent_partition() != this_rank)
+            {
+                dest_builder.add_source_rank(n_ptr->get_parent_partition());
+            }
+        }
+        destination_ranks = dest_builder.get_dest_ranks();
+        source_ranks = dest_builder.get_source_ranks();
 
         // Step 1: Communicate the ghost nodes this rank has to the respective remote rank,
         //         and build the receive maps.

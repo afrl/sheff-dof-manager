@@ -3,6 +3,8 @@
 #include "dof_manager/ScatterMapDestBuilder.h"
 #include "utility/MPIUtils.h"
 
+#include <fstream>
+
 namespace dof_manager
 {
     NodeScatterMap::NodeScatterMap(
@@ -30,6 +32,7 @@ namespace dof_manager
     {
         return { source_ranks };
     }
+
     detail::ScatterNodeRange NodeScatterMap::nodes_to_receive_range(
         const detail::RankIndexValuePair& rank_pair) const
     {
@@ -45,6 +48,8 @@ namespace dof_manager
     {
         const auto this_rank = utility::MPIUtils::get_local_rank();
 
+        //std::ofstream out("build_maps_" + std::to_string(this_rank) + ".txt");
+
         // The node scatter map does not neccessary have the same source/dest ranks for exchanging
         // information.  It is possible that a rank has a node from a specific rank but not an
         // element. So build the correct maps through MPI communication.
@@ -58,41 +63,63 @@ namespace dof_manager
         }
         destination_ranks = dest_builder.get_dest_ranks();
         source_ranks = dest_builder.get_source_ranks();
+        /*
+        out << this_rank << ": Finished building dest ranks: ";
+        for (auto& r : destination_ranks) out << r << " ";
+        out << " with sources: ";
+        for (auto& r : source_ranks) out << r << " ";
+        out << std::endl;
+        */
 
         // Step 1: Communicate the ghost nodes this rank has to the respective remote rank,
         //         and build the receive maps.
-        std::vector<NodeLocalIndex> send_buffer;
+        std::vector<flex_mesh::GlobalIndex> send_buffer;
         std::vector<size_t> send_offsets = { 0 };
         rank_receive_offsets = { 0 };
-        for (auto dest : element_scatter_map.destination_ranks_range())
+        for (auto source_rank : source_ranks)
         {
-            auto dest_rank = dest.rank;
-
+            //out << "Requests following nodes from " << source_rank << ":\n";
             for (auto& n_ptr : mesh.nodes())
             {
-                if (n_ptr->get_parent_partition() == dest_rank)
+                if (n_ptr->get_parent_partition() == source_rank)
                 {
                     send_buffer.push_back(n_ptr->get_global_number());
                     nodes_to_receive.push_back(n_ptr->get_local_number());
+                    //out << n_ptr->get_global_number() << " ";
                 }
             }
             send_offsets.push_back(send_buffer.size());
             rank_receive_offsets.push_back(nodes_to_receive.size());
+            //out << std::endl;
         }
         send_offsets.push_back(send_buffer.size());
         rank_receive_offsets.push_back(nodes_to_receive.size());
 
+        //out << this_rank << ": Starting exchange arrays" << std::endl;
+
         // Step 2: Exchange the lists of ghost nodes with ghost layers
-        std::vector<GlobalDofIndex> exchange_buffer;
-        utility::MPIUtils::exchange_arrays<GlobalDofIndex, size_t>(
-            static_cast<int>(destination_ranks.size()),
-            destination_ranks.data(),
-            send_buffer.data(),
-            send_offsets.data(),
+        std::vector<flex_mesh::GlobalIndex> exchange_buffer;
+        utility::MPIUtils::exchange_arrays<flex_mesh::GlobalIndex, size_t>(
             static_cast<int>(source_ranks.size()),
             source_ranks.data(),
+            send_buffer.data(),
+            send_offsets.data(),
+            static_cast<int>(destination_ranks.size()),
+            destination_ranks.data(),
             exchange_buffer,
             rank_send_offsets);
+        assert(rank_send_offsets.size() == destination_ranks.size() + 1);
+        /*
+        out << this_rank << ": Finished exchange arrays" << std::endl;
+
+        out << "exchange_offsets: { ";
+        for (auto& v : rank_send_offsets) out << v << " ";
+        out << "}" << std::endl;
+
+        out << "exchange_data: { ";
+        for (auto& v : exchange_buffer) out << v << " ";
+        out << "}" << std::endl;
+        */
 
         // Step 3: Build a ghost-node global -> local number map to remap the receive buffer
         //         to the local rank numbering
@@ -106,19 +133,31 @@ namespace dof_manager
         }
 
         // Step 4: Populate the send maps
-        for (auto source : element_scatter_map.source_ranks_range())
+        for (auto i : utility::indices(destination_ranks))
         {
-            for (auto offset = rank_send_offsets[source.index];
-                 offset < rank_send_offsets[source.index + 1]; )
+            const auto dest_rank = destination_ranks[i];
+            //out << "Owned nodes requested by " << dest_rank << ": (" << rank_send_offsets[i] << "-" << rank_send_offsets[i + 1] << ")\n";
+            for (auto offset = rank_send_offsets[i];
+                 offset < rank_send_offsets[i + 1]; )
             {
                 const auto& node_global_id = exchange_buffer[offset++];
+                //out << node_global_id << " ";
 
                 auto find_iter = owned_node_global_to_local_id_map.find(node_global_id);
-                assert(find_iter != owned_node_global_to_local_id_map.end());
+                if (find_iter == owned_node_global_to_local_id_map.end())
+                {
+                    //out << "\nError: " << node_global_id << " does not exist in the owned global to local map." << std::endl;
+                    //out << offset << " " << rank_send_offsets[i] << " " << rank_send_offsets[i + 1] << " ";
+                    //out.close();
+                    assert(find_iter != owned_node_global_to_local_id_map.end());
+                }
                 const auto& node_local_id = find_iter->second;
 
                 nodes_to_send.push_back(node_local_id);
             }
+            //out << std::endl;
         }
+
+        //out.close();
     }
 }

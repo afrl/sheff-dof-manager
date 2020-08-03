@@ -146,7 +146,7 @@ namespace dof_manager
                     " had the following uninitialized dofs: ";
                 for (auto& i : uninitialized_rank_dofs)
                 {
-                    std::cout << i << " ";
+                    std::cout << i << " (Node: " << mesh.nodes()[i / initial_dofs_per_node]->get_global_number() << ") ";
                 }
                 std::cout << std::endl;
             }

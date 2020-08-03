@@ -13,10 +13,11 @@ namespace dof_manager
     {
         std::vector<char> serialized_bitset(source_ranks_bitset_.getSizeInBytes());
         source_ranks_bitset_.write(serialized_bitset.data());
+        std::string serialized_bitset_str(serialized_bitset.begin(), serialized_bitset.end());
+        //std::cout << utility::MPIUtils::get_local_rank() << ": sending bitset: " << source_ranks_bitset_.toString() << " as '" << serialized_bitset_str << "' with size " << serialized_bitset.size() << std::endl;
 
         // Note: the returned value is only non-empty for the root rank
-        auto source_rank_bitset_by_rank = utility::MPIUtils::gather_strings_by_rank(
-            std::string(serialized_bitset.begin(), serialized_bitset.end()));
+        auto source_rank_bitset_by_rank = utility::MPIUtils::gather_strings_by_rank(serialized_bitset_str);
 
         // Create a multimap that stores pairs of rank indices with:
         // * key - the rank that should send the data (to the one indicated by the value)
@@ -25,7 +26,9 @@ namespace dof_manager
         for (auto rank : utility::indices(source_rank_bitset_by_rank))
         {
             Roaring source_rank_for_dest;
-            source_rank_for_dest.read(source_rank_bitset_by_rank[rank].c_str());
+            source_rank_for_dest = Roaring::readSafe(source_rank_bitset_by_rank[rank].c_str(), source_rank_bitset_by_rank[rank].size());
+            //std::cout << "Serialized bit from " << rank << ": '" << source_rank_bitset_by_rank[rank] <<
+            //          "' with size " << source_rank_bitset_by_rank[rank].size() << " deserializes to " << source_rank_for_dest.toString() << std::endl;
             for (auto iter = source_rank_for_dest.begin();
                 iter != source_rank_for_dest.end();
                 iter++)
@@ -42,18 +45,21 @@ namespace dof_manager
         std::vector<size_t> dest_rank_offsets = { curr_offset };
         for (auto rank : utility::indices(source_rank_bitset_by_rank))
         {
+            //std::cout << "Sending dest's to rank " << rank;
             // Gets all of the values in the multimap for the current rank is the key
             auto iter_range = rank_to_source_multimap.equal_range(rank);
             for (auto iter = iter_range.first; iter != iter_range.second; iter++)
             {
+                //std::cout << iter->second << " ";
                 dest_rank_data.push_back(iter->second);
                 curr_offset++;
             }
+            //std::cout << std::endl;
             dest_rank_offsets.push_back(curr_offset);
         }
 
         auto dest_ranks = utility::MPIUtils::scatter_arrays(
-            dest_rank_data.data(),
+            dest_rank_data,
             dest_rank_offsets);
 
         std::sort(dest_ranks.begin(), dest_ranks.end());

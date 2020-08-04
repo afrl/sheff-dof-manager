@@ -364,7 +364,8 @@ class SpecializedOptionType( Enum ):
     CMakeUserDefinedBool = 1,
     CMakeAlwaysTrueBool  = 2,
     CMakeAlwaysFalseBool = 3,
-    EnvVarSetTrue = 4
+    EnvVarSetTrue = 4,
+    CMakeWarningFlag = 5
 
 #
 # End class SpecializedOptionType
@@ -468,7 +469,7 @@ def parse_options( specialized_options = [] ):
     # Top-level specifc options
     if module_info.root_module_type == ModuleType.TopLevel:
         select_group = parser.add_argument_group(
-            'Module selection (if none are specified, then all first-party and top are selected)')
+            'Module selection (if none are specified, then top is selected)')
         select_group.add_argument(
             '--top', action='store_true', help='Include the top-level project (BSAM++ exe)')
         select_group.add_argument(
@@ -616,7 +617,6 @@ def parse_options( specialized_options = [] ):
         if not args.top and not args.submodules and not args.first_party \
             and not args.second_party and not args.third_party:
             opts.include_top = True
-            opts.include_first_party = True
     # Misc. options
     if args.verbose:
         opts.verbose = True
@@ -752,7 +752,8 @@ def config( opts, module_dir, specialized_options = [] ):
     for special_opt in specialized_options:
         if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool or \
             special_opt.type == SpecializedOptionType.CMakeAlwaysTrueBool or \
-            special_opt.type == SpecializedOptionType.CMakeAlwaysFalseBool:
+            special_opt.type == SpecializedOptionType.CMakeAlwaysFalseBool or \
+            special_opt.type == SpecializedOptionType.CMakeWarningFlag:
             
             if module_dir.name in special_opt.modules_and_var_map.keys():
                 if special_opt.type == SpecializedOptionType.CMakeUserDefinedBool:
@@ -761,6 +762,8 @@ def config( opts, module_dir, specialized_options = [] ):
                     cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=ON'
                 elif special_opt.type == SpecializedOptionType.CMakeAlwaysFalseBool:
                     cmake_flags += ' -D' + special_opt.modules_and_var_map[module_dir.name] + ':BOOL=OFF'
+                elif special_opt.type == SpecializedOptionType.CMakeWarningFlag:
+                    cmake_flags += ' -W' + special_opt.modules_and_var_map[module_dir.name]
 
     print_color( "Configuring module: " + module_dir.name, "blue" )
     cmd = mod_for_os( opts.cmake_cmd + ' -G"' + opts.cmake_opts['generator'] + '" ' + cmake_arch_flag +
@@ -961,26 +964,6 @@ def Config_BSAMXX_Version_H( mod_info, shell_executable ):
     with open(os.path.join(top_dir, "include", "bsamxx_version.h"), 'w') as header_file:
         header_file.write( header_str )
 
-#####################################################################################
-
-def Config_InputSchema_H( mod_dir ):
-
-    with open(os.path.join(mod_dir, "include", "parser", "script_to_json", "InputSchema.h.in"), 'r') as header_template:
-        header_str = header_template.read()
-   
-    # Warn not to modify updated .h file 
-    header_str = header_str.replace( '${OVERWRITE_WARNING}', "DO NOT MODIFY. Automatically configured from InputSchema.h.in" )
-
-    # Get contents of json schema file
-    with open(os.path.join(mod_dir, "include", "parser", "script_to_json", "main_schema.json"), 'r') as s_file:
-        schema = s_file.read()
-
-    header_str = header_str.replace('${MAIN_SCHEMA}', schema)
-
-    # Finally write the full string to the header file
-    with open(os.path.join(mod_dir, "include", "parser", "script_to_json", "InputSchema.h"), 'w') as header_file:
-        header_file.write( header_str )
-
 
 #####################################################################################
 # Verify that python and cmake versions are new enough...
@@ -1075,12 +1058,6 @@ def make( specialized_opts, build_order=[] ):
             # First update the bsamxx_version.h header
             Config_BSAMXX_Version_H( module_info, opts.shell_executable )
 
-            # Also have parser module create its schema header
-            Config_InputSchema_H ( os.path.join( opts.root_module_dir, "modules", "parser" ) ) 
-
-        elif ( module_info.root_module_name == "parser" ): 
-            # Update the InputSchema.h header from main_schema.json
-            Config_InputSchema_H ( opts.root_module_dir ) 
 
     if opts.config:
         for module_dir in selected_modules:

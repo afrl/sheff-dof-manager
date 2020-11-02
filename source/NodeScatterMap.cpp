@@ -73,7 +73,7 @@ namespace dof_manager
 
         // Step 1: Communicate the ghost nodes this rank has to the respective remote rank,
         //         and build the receive maps.
-        std::vector<flex_mesh::GlobalIndex> send_buffer;
+        std::vector<mesh::GlobalIndex> send_buffer;
         std::vector<size_t> send_offsets = { 0 };
         rank_receive_offsets = { 0 };
         for (auto source_rank : source_ranks)
@@ -98,8 +98,8 @@ namespace dof_manager
         //out << this_rank << ": Starting exchange arrays" << std::endl;
 
         // Step 2: Exchange the lists of ghost nodes with ghost layers
-        std::vector<flex_mesh::GlobalIndex> exchange_buffer;
-        utility::MPIUtils::exchange_arrays<flex_mesh::GlobalIndex, size_t>(
+        std::vector<mesh::GlobalIndex> exchange_buffer;
+        utility::MPIUtils::exchange_arrays<mesh::GlobalIndex, size_t>(
             static_cast<int>(source_ranks.size()),
             source_ranks.data(),
             send_buffer.data(),
@@ -123,7 +123,7 @@ namespace dof_manager
 
         // Step 3: Build a ghost-node global -> local number map to remap the receive buffer
         //         to the local rank numbering
-        std::map<flex_mesh::GlobalIndex, flex_mesh::LocalIndex> owned_node_global_to_local_id_map;
+        std::map<mesh::GlobalIndex, mesh::LocalIndex> owned_node_global_to_local_id_map;
         for (auto& n_ptr : mesh.nodes())
         {
             if (n_ptr->get_parent_partition() == this_rank)

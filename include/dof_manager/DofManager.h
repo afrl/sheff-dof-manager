@@ -83,7 +83,7 @@ namespace dof_manager
         /// Note: be sure to call add_new_dof() beforehand for any new DoF's that may
         ///       appear in replacement_dofs.
         void enrich_element(
-            const flex_mesh::LocalIndex& local_element_number,
+            const mesh::LocalIndex& local_element_number,
             const std::vector<RankDofIndex>& replacement_dofs);
 
         /// Mark that a dof should be combined into another during the next renumbering phase.

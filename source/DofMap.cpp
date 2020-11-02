@@ -32,7 +32,7 @@ namespace dof_manager
     }
 
     ElementToRankDofMap DofMap::get_element_map(
-        const flex_mesh::LocalIndex element_local_number) const
+        const mesh::LocalIndex element_local_number) const
     {
         return ElementToRankDofMap(
             element_to_rank_maps[element_local_number],
@@ -78,10 +78,10 @@ namespace dof_manager
         std::stringstream ss;
         ss << "Element to Rank Map:" << std::endl;
         ss << element_n_dofs.size() << " elements" << std::endl;
-        for (auto i : utility::range_from_zero(element_n_dofs.size()))
+        for (auto i : utility::range(element_n_dofs.size()))
         {
             ss << mesh.elements()[i]->get_global_number() << " : ";
-            for (auto j : utility::range_from_zero(element_n_dofs[i]))
+            for (auto j : utility::range(element_n_dofs[i]))
             {
                 ss << " " << element_to_rank_maps[i][j];
             }
@@ -91,7 +91,7 @@ namespace dof_manager
 
         ss << "Rank to Global Map:" << std::endl;
         ss << rank_to_global_map.size() << " DoFs on rank" << std::endl;
-        for (auto i : utility::range_from_zero(rank_to_global_map.size()))
+        for (auto i : utility::range(rank_to_global_map.size()))
         {
             ss << i << " -> " << rank_to_global_map[i] << std::endl;
         }

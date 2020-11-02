@@ -30,7 +30,7 @@ namespace dof_manager
         dof_map_.rank_to_global_map = rank_to_global_map;
         dof_map_.element_n_dofs.resize(element_to_rank_maps.size(), 0);
         dof_map_.element_to_rank_maps.resize(element_to_rank_maps.size(), nullptr);
-        for (auto i : utility::range_from_zero(element_to_rank_maps.size()))
+        for (auto i : utility::range(element_to_rank_maps.size()))
         {
             const auto n_dofs = static_cast<RankDofIndex>(element_to_rank_maps[i].size());
             dof_map_.element_n_dofs[i] = n_dofs;
@@ -75,7 +75,7 @@ namespace dof_manager
     }
 
     void DofManager::enrich_element(
-        const flex_mesh::LocalIndex& local_element_number, 
+        const mesh::LocalIndex& local_element_number, 
         const std::vector<RankDofIndex>& replacement_dofs)
     {
         const auto curr_n_dofs_on_rank =

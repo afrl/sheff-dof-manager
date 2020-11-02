@@ -49,8 +49,8 @@ find_package(SimpleMath CONFIG REQUIRED HINTS
   "${CMAKE_SOURCE_DIR}/../simple_math/install_dir" "${CMAKE_SOURCE_DIR}/../../simple_math/install_dir" "${CMAKE_SOURCE_DIR}/modules/simple_math/install_dir")
 find_package(Constitutive CONFIG REQUIRED HINTS 
   "${CMAKE_SOURCE_DIR}/../constitutive/install_dir" "${CMAKE_SOURCE_DIR}/../../constitutive/install_dir" "${CMAKE_SOURCE_DIR}/modules/constitutive/install_dir")
-find_package(FlexMesh CONFIG REQUIRED HINTS 
-  "${CMAKE_SOURCE_DIR}/../flex_mesh/install_dir" "${CMAKE_SOURCE_DIR}/../../flex_mesh/install_dir" "${CMAKE_SOURCE_DIR}/modules/flex_mesh/install_dir")
+find_package(Mesh CONFIG REQUIRED HINTS 
+  "${CMAKE_SOURCE_DIR}/../mesh/install_dir" "${CMAKE_SOURCE_DIR}/../../mesh/install_dir" "${CMAKE_SOURCE_DIR}/modules/mesh/install_dir")
 find_package(FeaIo CONFIG REQUIRED HINTS 
   "${CMAKE_SOURCE_DIR}/../fea_io/install_dir" "${CMAKE_SOURCE_DIR}/../../fea_io/install_dir" "${CMAKE_SOURCE_DIR}/modules/fea_io/install_dir")
 find_package(FiniteElement CONFIG REQUIRED HINTS 
@@ -87,7 +87,7 @@ target_compile_features(dofmanager PUBLIC cxx_std_14)
 target_link_libraries(dofmanager PUBLIC Utility::Utility)
 target_link_libraries(dofmanager PUBLIC SimpleMath::SimpleMath)
 target_link_libraries(dofmanager PUBLIC Constitutive::Constitutive)
-target_link_libraries(dofmanager PUBLIC FlexMesh::FlexMesh)
+target_link_libraries(dofmanager PUBLIC Mesh::Mesh)
 target_link_libraries(dofmanager PUBLIC FeaIo::FeaIo)
 target_link_libraries(dofmanager PUBLIC FiniteElement::FiniteElement)
 
@@ -99,7 +99,7 @@ assign_source_group("dof_manager" ${DOFMANAGER_SOURCE_LIST})
 assign_source_group_Utility()
 assign_source_group_SimpleMath()
 assign_source_group_Constitutive()
-assign_source_group_FlexMesh()
+assign_source_group_Mesh()
 assign_source_group_FeaIo()
 assign_source_group_FiniteElement()
 

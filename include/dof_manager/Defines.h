@@ -1,7 +1,6 @@
 #pragma once
 
 #include "mesh/Defines.h"
-#include "mesh/Mesh.h"
 #include "mesh/relations/ElementAdjacencyList.h"
 
 #include <cstdint>

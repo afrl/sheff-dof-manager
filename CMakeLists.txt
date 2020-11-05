@@ -102,7 +102,9 @@ assign_source_group_Constitutive()
 assign_source_group_Mesh()
 assign_source_group_FeaIo()
 assign_source_group_FiniteElement()
-
+assign_source_group_SecondPartyMath()
+assign_source_group_SecondPartyMesh()
+assign_source_group_SecondPartyMetis()
 
 #################################
 # Add unit test targets #

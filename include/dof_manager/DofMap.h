@@ -2,6 +2,7 @@
 
 #include "dof_manager/Defines.h"
 #include "dof_manager/SingleDofMap.h"
+#include "finite_element/FiniteElementMesh.h"
 
 #include <vector>
 
@@ -15,14 +16,6 @@ struct DofMap
 {
     /// The number of elements owned by this rank
     mesh::LocalIndex n_owned_elements;
-
-    std::vector<RankIndex*> element_to_vector_value_maps;
-    std::vector<RankIndex*> element_to_cg_vector_value_maps;
-    std::vector<ElementIndex> element_n_vector_values;
-
-    std::vector<GlobalIndex*> cg_vector_value_to_global_dof_offset_map;
-
-
 
     /// The number of DoF's in each element, corresponds to element_to_rank_maps_
     std::vector<ElementDofIndex> element_n_dofs;
@@ -96,6 +89,6 @@ struct DofMap
     /// Returns the type of DoF, which depends on which interval the DoF falls in.
     DofType get_dof_type(const RankDofIndex rank_dof) const;
 
-    const std::string str(const MeshType& mesh) const;
+    const std::string str(const finite_element::FiniteElementMesh& fe_mesh) const;
 };
 }

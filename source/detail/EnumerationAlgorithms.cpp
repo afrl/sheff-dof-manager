@@ -3,6 +3,7 @@
 #include "dof_manager/DofRanges.h"
 #include "dof_manager/ElementScatterMap.h"
 #include "dof_manager/NodeScatterMap.h"
+#include "finite_element/FiniteElement.h"
 #include "utility/MPIUtils.h"
 
 #include <fstream>
@@ -22,23 +23,24 @@ void create_initial_enumeration(const finite_element::FiniteElementMesh& fe_mesh
 
     // For now, assume each node has the same number of DoF's at the start of the analysis.
     // This algorithm will have to be generalized if this is not the case.
-    auto initial_dofs_per_node = fe_mesh.mesh.elements()[0]->get_n_dofs_per_point();
+    auto initial_dofs_per_node =
+      finite_element::FiniteElement::get_n_dofs_per_point(*fe_mesh.layouts.front());
 
-    dof_map.element_to_rank_maps.resize(mesh.elements().size(), nullptr);
-    dof_map.element_n_dofs.resize(mesh.elements().size(), 0);
+    dof_map.element_to_rank_maps.resize(fe_mesh.mesh.elements().size(), nullptr);
+    dof_map.element_n_dofs.resize(fe_mesh.mesh.elements().size(), 0);
 
     // At this point, nodes only have one set of DoF's associated with them.  For the set of
     // nodes that appear in the connectivity of owned elements, count the number of DoF's on
     // this rank in each interval.
     dof_map.n_owned_dofs = 0;
-    for (auto& n_ptr : mesh.nodes())
+    for (auto& node : fe_mesh.mesh.nodes())
     {
-        if (n_ptr->get_parent_partition() == local_rank)
+        if (node.parent_partition() == local_rank)
         {
             dof_map.n_owned_dofs += initial_dofs_per_node;
         }
     }
-    auto n_all_dofs_on_rank = initial_dofs_per_node * mesh.nodes().size();
+    auto n_all_dofs_on_rank = initial_dofs_per_node * fe_mesh.mesh.nodes().size();
 
     auto n_owned_dofs_by_rank = utility::MPIUtils::all_gather_vectors<GlobalDofIndex>(
       { static_cast<GlobalDofIndex>(dof_map.n_owned_dofs) });
@@ -55,18 +57,17 @@ void create_initial_enumeration(const finite_element::FiniteElementMesh& fe_mesh
     dof_map.rank_to_global_map.resize(n_all_dofs_on_rank,
                                       std::numeric_limits<GlobalDofIndex>::max());
     GlobalDofIndex curr_global_index = dof_map.owned_global_dof_begin;
-    std::vector<GlobalDofIndex> node_to_dof_offset_map(mesh.nodes().size(),
+    std::vector<GlobalDofIndex> node_to_dof_offset_map(fe_mesh.mesh.nodes().size(),
                                                        std::numeric_limits<GlobalDofIndex>::max());
-    for (auto& n_ptr : mesh.nodes())
+    for (auto& node : fe_mesh.mesh.nodes())
     {
-        if (n_ptr->get_parent_partition() == local_rank)
+        if (node.parent_partition() == local_rank)
         {
-            node_to_dof_offset_map[n_ptr->get_local_number()] = curr_global_index;
+            node_to_dof_offset_map[node.local_index()] = curr_global_index;
             for (auto component : utility::range(initial_dofs_per_node))
             {
-                const auto rank_index =
-                  initial_dofs_per_node * n_ptr->get_local_number() + component;
-                const auto global_index                = curr_global_index++;
+                const auto rank_index   = initial_dofs_per_node * node.local_index() + component;
+                const auto global_index = curr_global_index++;
                 dof_map.rank_to_global_map[rank_index] = global_index;
             }
         }
@@ -79,7 +80,7 @@ void create_initial_enumeration(const finite_element::FiniteElementMesh& fe_mesh
         // Right now, this is the only part of the code that requires a NodeScatterMap.  If the
         // analysis or another persistent object requires a NodeScatterMap, then it should be passed
         // into this method instead of temporarily created.
-        NodeScatterMap node_scatter_map(mesh, element_scatter_map);
+        NodeScatterMap node_scatter_map(fe_mesh, element_scatter_map);
 
         // Populate the a list of global DoF offsets (the first DoF of the node) for ghost nodes in
         // the other ranks
@@ -142,9 +143,8 @@ void create_initial_enumeration(const finite_element::FiniteElementMesh& fe_mesh
                   << " had the following uninitialized dofs: ";
         for (auto& i : uninitialized_rank_dofs)
         {
-            std::cout << i
-                      << " (Node: " << mesh.nodes()[i / initial_dofs_per_node]->get_global_number()
-                      << ") ";
+            std::cout << i << " (Node: "
+                      << fe_mesh.mesh.nodes()[i / initial_dofs_per_node].global_index() << ") ";
         }
         std::cout << std::endl;
     }
@@ -159,27 +159,26 @@ void create_initial_enumeration(const finite_element::FiniteElementMesh& fe_mesh
 
     // Create the initial element-rank-map
     dof_map.n_owned_elements = 0;
-    for (auto& e_ptr : mesh.elements())
+    for (auto& element : fe_mesh.mesh.elements())
     {
         const ElementDofIndex n_dofs_for_element =
-          static_cast<ElementDofIndex>(e_ptr->get_num_nodes() * initial_dofs_per_node);
-        dof_map.element_to_rank_maps[e_ptr->get_local_number()] =
-          new RankDofIndex[n_dofs_for_element];
-        dof_map.element_n_dofs[e_ptr->get_local_number()] = n_dofs_for_element;
+          static_cast<ElementDofIndex>(element.connectivity().size() * initial_dofs_per_node);
+        dof_map.element_to_rank_maps[element.local_index()] = new RankDofIndex[n_dofs_for_element];
+        dof_map.element_n_dofs[element.local_index()]       = n_dofs_for_element;
 
-        auto& element_dof_map      = dof_map.element_to_rank_maps[e_ptr->get_local_number()];
+        auto& element_dof_map      = dof_map.element_to_rank_maps[element.local_index()];
         ElementDofIndex node_index = 0;
-        for (auto& n_ptr : *e_ptr)
+        for (auto& node : element.nodes())
         {
             for (auto component : utility::range(initial_dofs_per_node))
             {
                 element_dof_map[node_index * initial_dofs_per_node + component] =
-                  initial_dofs_per_node * n_ptr->get_local_number() + component;
+                  initial_dofs_per_node * node.local_index() + component;
             }
             node_index++;
         }
 
-        if (e_ptr->get_parent_partition() == local_rank)
+        if (element.parent_partition() == local_rank)
         {
             dof_map.n_owned_elements++;
         }
@@ -903,16 +902,16 @@ std::vector<std::size_t> sort_intervals(DofMap& dof_map)
     }
 
     // Update counts
-    dof_map.n_owned_dofs =
+    dof_map.n_owned_dofs = static_cast<RankDofIndex>(
       std::count_if(dof_types_map.begin(), dof_types_map.end(), [](const DofType& type) -> bool {
           return type == DofType::OWNED;
-      });
-    dof_map.n_local_ghost_dofs =
+      }));
+    dof_map.n_local_ghost_dofs = static_cast<RankDofIndex>(
       std::count_if(dof_types_map.begin(), dof_types_map.end(), [](const DofType& type) -> bool {
           return type == DofType::LOCAL_GHOST;
-      });
-    dof_map.n_exclusive_ghost_dofs =
-      dof_types_map.size() - dof_map.n_owned_dofs - dof_map.n_local_ghost_dofs;
+      }));
+    dof_map.n_exclusive_ghost_dofs = static_cast<RankDofIndex>(dof_types_map.size()) -
+                                     dof_map.n_owned_dofs - dof_map.n_local_ghost_dofs;
 
 
     // Sort the rank indices first by the DoF type then by the global index

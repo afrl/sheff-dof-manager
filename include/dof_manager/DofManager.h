@@ -5,6 +5,7 @@
 #include "dof_manager/ElementScatterMap.h"
 #include "dof_manager/EnrichmentPhaseData.h"
 #include "dof_manager/RenumberStructs.h"
+#include "finite_element/FiniteElementMesh.h"
 
 #include <set>
 #include <unordered_set>
@@ -43,7 +44,7 @@ namespace dof_manager
         /// not allowed to be called multiple times.  It should only occur once near the beginning
         /// of an analysis.
         void enumerate(
-            const MeshType& mesh,
+            const finite_element::FiniteElementMesh& fe_mesh,
             const ElementScatterMap& scatter_map);
 
         /// Sets the DoF enumeration state, allowing unit testing or a custom external initial

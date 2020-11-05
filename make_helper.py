@@ -160,6 +160,8 @@ class MakeOptions:
         self.clean = False
         self.clean_toolchain = False
         self.copy_make = False
+        self.open_vs = False
+        self.open_vscode = False
         # Store cmake cmd, since on some linux installs it is cmake3
         self.cmake_cmd = "cmake"
         self.ctest_cmd = "ctest"
@@ -440,6 +442,12 @@ def parse_options( specialized_options = [] ):
     if module_info.root_module_type == ModuleType.TopLevel:
         command_group.add_argument(
             '--copy-make', action='store_true', help='Copy the make_helper.py from the top-level module down to submodules')
+    if module_info.root_module_type != ModuleType.TopLevel and os.name == 'nt': # Option only for Windows
+        command_group.add_argument(
+            '--open-vs', action='store_true', help='Open Visual Studio solution after configuration.')
+    if module_info.root_module_type != ModuleType.TopLevel:
+        command_group.add_argument(
+                '--open-vscode', action='store_true', help='Open module folder with VSCode.')
     # Configuration options
     config_group = parser.add_argument_group('Configuration options')
     config_group.add_argument('--generator', default='', action='store',
@@ -537,6 +545,10 @@ def parse_options( specialized_options = [] ):
         opts.clear_cache = True
     if args.clean:
         opts.clean = True
+    if args.open_vs:
+        opts.open_vs = True
+    if args.open_vscode:
+        opts.open_vscode = True
 
     # Directory suffix option: This MUST come before the other options as dir_suffix affects 
     # build location and therefore saved config options (since we may want to save different 
@@ -886,6 +898,23 @@ def test( opts, selected_modules_dirs ):
 
 #####################################################################################
 
+def open_vs( opts, module_dir ):
+    """Opens the solution project for the given module."""
+
+    cmd = '"' + os.path.join(module_dir.build_dir,
+                             module_dir.name.replace('_', '') + '.sln"')
+    subprocess.Popen(cmd, shell = True, executable=opts.shell_executable)
+
+#####################################################################################
+
+def open_vscode( opts, module_dir ):
+    """Opens the root directory of the given module in VS Code."""
+
+    subprocess.Popen('code "' + module_dir.module_dir + '"',
+                     shell = True, executable=opts.shell_executable)
+
+#####################################################################################
+
 def list_tests( opts, selected_modules_dirs ):
 
     vflag = ""
@@ -1071,6 +1100,14 @@ def make( specialized_opts, build_order=[] ):
 
     if opts.run_tests:
         test( opts, selected_modules )
+    
+    if opts.open_vs:
+        for module_dir in selected_modules:
+            open_vs( opts, module_dir )
+
+    if opts.open_vscode:
+        for module_dir in selected_modules:
+            open_vscode( opts, module_dir )
 
     if opts.list_tests:
         list_tests( opts, selected_modules )

@@ -8,36 +8,37 @@ int main(int argc, char** argv)
 
     UnitTestDataStructures test_data({ 1, 1, 1 });
 
-    ElementAdjacencyList adjacency_list;
-    adjacency_list.initialize(test_data.mesh);
+    mesh::ElementAdjacencyList adjacency_list;
+    adjacency_list.update(test_data.fe_mesh.mesh);
 
-    ElementScatterMap element_scatter(test_data.mesh, adjacency_list);
+    ElementScatterMap element_scatter(test_data.fe_mesh, adjacency_list);
 
     DofManager dof_manager;
-    dof_manager.enumerate(test_data.mesh, element_scatter);
-    auto& dof_map = dof_manager.get_dof_maps();
+    dof_manager.enumerate(test_data.fe_mesh, element_scatter);
+    auto& dof_map         = dof_manager.get_dof_maps();
     auto& enrichment_data = dof_manager.get_enrichment_data();
 
-    std::cout << "Original dof maps:\n" << dof_map.str(test_data.mesh) << std::endl;
+    std::cout << "Original dof maps:\n" << dof_map.str(test_data.fe_mesh) << std::endl;
 
-    const auto n_dofs_unenriched = static_cast<RankDofIndex>(3 * test_data.mesh.nodes().size());
+    const auto n_dofs_unenriched =
+      static_cast<RankDofIndex>(3 * test_data.fe_mesh.mesh.nodes().size());
     assert(dof_map.rank_to_global_map.size() == n_dofs_unenriched);
     auto orig_rank_to_global_map = dof_map.rank_to_global_map;
     const auto orig_n_owned_dofs = dof_map.n_owned_dofs;
 
     // Duplicate each dof
     std::vector<RankDofIndex> new_element_dofs;
-    for (auto node_index : utility::range_from_zero(test_data.mesh.nodes().size()))
+    for (auto node_index : utility::range(test_data.fe_mesh.mesh.nodes().size()))
     {
-        for (auto j : utility::range_from_zero(3))
+        for (auto j : utility::range(3))
         {
             new_element_dofs.push_back(j + 3 * node_index);
         }
     }
-    for (auto node_index : utility::range_from_zero(test_data.mesh.nodes().size()))
+    for (auto node_index : utility::range(test_data.fe_mesh.mesh.nodes().size()))
     {
         std::vector<RankDofIndex> node_dofs;
-        for (auto j : utility::range_from_zero(3))
+        for (auto j : utility::range(3))
         {
             auto new_dof = dof_manager.add_new_dof(j + 3 * node_index);
             assert(new_dof == orig_n_owned_dofs + j + 3 * node_index);
@@ -51,7 +52,7 @@ int main(int argc, char** argv)
     // 0->24
     // 1->25
     // 2->26
-    for (auto j : utility::range_from_zero(3))
+    for (auto j : utility::range(3))
     {
         dof_manager.queue_dof_combination(j, orig_n_owned_dofs + j);
 
@@ -114,7 +115,7 @@ int main(int argc, char** argv)
 
     dof_manager.renumber(element_scatter);
 
-    std::cout << dof_map.str(test_data.mesh) << std::endl;
+    std::cout << dof_map.str(test_data.fe_mesh) << std::endl;
 
     return 0;
 }

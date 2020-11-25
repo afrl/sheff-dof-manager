@@ -67,7 +67,7 @@ namespace dof_manager
         ///     for the other basal field.  This parameter is the old dof.
         ///
         /// Note: because of this modifies counters and containers, enrichment of
-        ///       elements MUST be sequential on each rank or a data race will ensue.
+        ///       elements MUST be serial on each rank or a data race will ensue.
         ///       However, atomic operations could be implemented in the future.
         /// Note: if new DoF's need to be added for other reasons than XFEM, then
         ///       another version of add_new_dof should be created.

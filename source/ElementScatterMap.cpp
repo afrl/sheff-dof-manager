@@ -4,8 +4,8 @@
 
 namespace dof_manager
 {
-ElementScatterMap::ElementScatterMap(const finite_element::FiniteElementMesh& fe_mesh,
-                                     const mesh::ElementAdjacencyList& adjacency)
+void ElementScatterMap::update(const finite_element::FiniteElementMesh& fe_mesh,
+                               const mesh::ElementAdjacencyList& adjacency)
 {
     build_receive_maps(fe_mesh);
     build_send_maps(fe_mesh, adjacency);
@@ -33,6 +33,11 @@ detail::ScatterElementRange ElementScatterMap::elements_to_receive_range(
 {
     return { elements_to_receive.data() + rank_receive_offsets[rank_pair.index],
              elements_to_receive.data() + rank_receive_offsets[rank_pair.index + 1] };
+}
+
+bool ElementScatterMap::initialized() const
+{
+    return destination_ranks.size() > 0 || !utility::MPIUtils::is_distributed();
 }
 
 void ElementScatterMap::build_receive_maps(const finite_element::FiniteElementMesh& fe_mesh)

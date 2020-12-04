@@ -48,9 +48,10 @@ struct ElementScatterMap
     /// See rank_send_offsets for an explanation of the structure
     std::vector<size_t> rank_receive_offsets;
 
+    ElementScatterMap() {}
 
-    ElementScatterMap(const finite_element::FiniteElementMesh& fe_mesh,
-                      const mesh::ElementAdjacencyList& adjacency);
+    void update(const finite_element::FiniteElementMesh& fe_mesh,
+                const mesh::ElementAdjacencyList& adjacency);
 
     /// Provides a convenient way to iterate over the destination ranks with a
     /// range-based loop.  See the ElementScatterMap description for an example.
@@ -69,6 +70,11 @@ struct ElementScatterMap
     /// range-based loop.  See the ElementScatterMap description for an example.
     detail::ScatterElementRange elements_to_receive_range(
       const detail::RankIndexValuePair& rank_pair) const;
+
+    /// @brief Indicates whether update has been called at least once.  This does not indicate if the
+    /// scatter map is still valid, and adding elements or dynamic load balancing to the mesh will
+    /// indeed invalidate the scatter map.
+    bool initialized() const;
 
   private:
     void build_receive_maps(const finite_element::FiniteElementMesh& fe_mesh);

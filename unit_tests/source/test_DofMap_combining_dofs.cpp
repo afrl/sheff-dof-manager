@@ -11,7 +11,8 @@ int main(int argc, char** argv)
     mesh::ElementAdjacencyList adjacency_list;
     adjacency_list.update(test_data.fe_mesh.mesh);
 
-    ElementScatterMap element_scatter(test_data.fe_mesh, adjacency_list);
+    ElementScatterMap element_scatter;
+    element_scatter.update(test_data.fe_mesh, adjacency_list);
 
     DofManager dof_manager;
     dof_manager.enumerate(test_data.fe_mesh, element_scatter);

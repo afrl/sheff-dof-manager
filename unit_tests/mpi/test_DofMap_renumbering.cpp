@@ -12,10 +12,10 @@ void assert_element_to_rank(
     const std::vector<std::vector<RankDofIndex>>& element_to_rank)
 {
     assert(dof_map.element_to_rank_maps.size() == element_to_rank.size());
-    for (auto i : utility::range_from_zero(element_to_rank.size()))
+    for (auto i : utility::range(element_to_rank.size()))
     {
         assert(element_to_rank[i].size() == dof_map.element_n_dofs[i]);
-        for (auto j : utility::range_from_zero(element_to_rank[i].size()))
+        for (auto j : utility::range(element_to_rank[i].size()))
         {
             assert(element_to_rank[i][j] == dof_map.element_to_rank_maps[i][j]);
         }
@@ -34,132 +34,52 @@ int main(int argc, char** argv)
     // |  0  |  1  |  2  |  3  |
     // o-----o-----o-----o-----o
     // 0     1     2     5     6
-    MeshType mesh;
+    finite_element::FiniteElementMesh fe_mesh;
     if (utility::MPIUtils::get_local_rank() == 0)
     {
-        auto n0 = mesh.add_node_by_coord({ 0, 0, 0 });
-        n0->set_local_number(0);
-        n0->set_global_number(0);
-        n0->set_parent_partition(0);
+        mesh::Mesh mesh;
 
-        auto n1 = mesh.add_node_by_coord({ 1, 0, 0 });
-        n1->set_local_number(1);
-        n1->set_global_number(1);
-        n1->set_parent_partition(0);
+        mesh.nodes().add({ 0, 0, 0 }, 0, 0);
+        mesh.nodes().add({ 1, 0, 0 }, 1, 0);
+        mesh.nodes().add({ 2, 0, 0 }, 2, 0);
+        mesh.nodes().add({ 0, 1, 0 }, 3, 0);
+        mesh.nodes().add({ 1, 1, 0 }, 4, 0);
+        mesh.nodes().add({ 2, 1, 0 }, 7, 1);
+        mesh.nodes().add({ 3, 0, 0 }, 5, 1);
+        mesh.nodes().add({ 3, 1, 0 }, 8, 1);
 
-        auto n2 = mesh.add_node_by_coord({ 2, 0, 0 });
-        n2->set_local_number(2);
-        n2->set_global_number(2);
-        n2->set_parent_partition(0);
+        mesh.elements().add(mesh::ElementType::Q2D4N, { 0, 1, 4, 3 }, 0, 0);
+        mesh.elements().add(mesh::ElementType::Q2D4N, { 1, 2, 5, 4 }, 1, 0);
+        mesh.elements().add(mesh::ElementType::Q2D4N, { 2, 6, 7, 5 }, 2, 1);
 
-        auto n3 = mesh.add_node_by_coord({ 0, 1, 0 });
-        n3->set_local_number(3);
-        n3->set_global_number(3);
-        n3->set_parent_partition(0);
-
-        auto n4 = mesh.add_node_by_coord({ 1, 1, 0 });
-        n4->set_local_number(4);
-        n4->set_global_number(4);
-        n4->set_parent_partition(0);
-
-        auto n7 = mesh.add_node_by_coord({ 2, 1, 0 });
-        n7->set_local_number(5);
-        n7->set_global_number(7);
-        n7->set_parent_partition(1);
-
-        auto n5 = mesh.add_node_by_coord({ 3, 0, 0 });
-        n5->set_local_number(6);
-        n5->set_global_number(5);
-        n5->set_parent_partition(1);
-
-        auto n8 = mesh.add_node_by_coord({ 3, 1, 0 });
-        n8->set_local_number(7);
-        n8->set_global_number(8);
-        n8->set_parent_partition(1);
-
-        auto e0 = mesh.elements().add();
-        e0->initialize(flex_mesh::ElementType::Q2D4N, { n0, n1, n4, n3 });
-        e0->set_local_number(0);
-        e0->set_global_number(0);
-        e0->set_parent_partition(0);
-
-        auto e1 = mesh.elements().add();
-        e1->initialize(flex_mesh::ElementType::Q2D4N, { n1, n2, n7, n4 });
-        e1->set_local_number(1);
-        e1->set_global_number(1);
-        e1->set_parent_partition(0);
-
-        auto e2 = mesh.elements().add();
-        e2->initialize(flex_mesh::ElementType::Q2D4N, { n2, n5, n8, n7 });
-        e2->set_local_number(2);
-        e2->set_global_number(2);
-        e2->set_parent_partition(1);
+        fe_mesh.initialize(std::move(mesh));
     }
     else if (utility::MPIUtils::get_local_rank() == 1)
     {
-        auto n5 = mesh.add_node_by_coord({ 3, 0, 0 });
-        n5->set_local_number(0);
-        n5->set_global_number(5);
-        n5->set_parent_partition(1);
+        mesh::Mesh mesh;
 
-        auto n6 = mesh.add_node_by_coord({ 4, 0, 0 });
-        n6->set_local_number(1);
-        n6->set_global_number(6);
-        n6->set_parent_partition(1);
+        mesh.nodes().add({ 3, 0, 0 }, 5, 1);
+        mesh.nodes().add({ 4, 0, 0 }, 6, 1);
+        mesh.nodes().add({ 2, 1, 0 }, 7, 1);
+        mesh.nodes().add({ 3, 1, 0 }, 8, 1);
+        mesh.nodes().add({ 4, 1, 0 }, 9, 1);
+        mesh.nodes().add({ 2, 0, 0 }, 2, 0);
+        mesh.nodes().add({ 1, 0, 0 }, 1, 0);
+        mesh.nodes().add({ 1, 1, 0 }, 4, 0);
 
-        auto n7 = mesh.add_node_by_coord({ 2, 1, 0 });
-        n7->set_local_number(2);
-        n7->set_global_number(7);
-        n7->set_parent_partition(1);
+        mesh.elements().add(mesh::ElementType::Q2D4N, { 5, 0, 3, 2 }, 2, 1);
+        mesh.elements().add(mesh::ElementType::Q2D4N, { 0, 1, 4, 3 }, 3, 1);
+        mesh.elements().add(mesh::ElementType::Q2D4N, { 6, 5, 2, 7 }, 1, 0);
 
-        auto n8 = mesh.add_node_by_coord({ 3, 1, 0 });
-        n8->set_local_number(3);
-        n8->set_global_number(8);
-        n8->set_parent_partition(1);
-
-        auto n9 = mesh.add_node_by_coord({ 4, 1, 0 });
-        n9->set_local_number(4);
-        n9->set_global_number(9);
-        n9->set_parent_partition(1);
-
-        auto n2 = mesh.add_node_by_coord({ 2, 0, 0 });
-        n2->set_local_number(5);
-        n2->set_global_number(2);
-        n2->set_parent_partition(0);
-
-        auto n1 = mesh.add_node_by_coord({ 1, 0, 0 });
-        n1->set_local_number(6);
-        n1->set_global_number(1);
-        n1->set_parent_partition(0);
-
-        auto n4 = mesh.add_node_by_coord({ 1, 1, 0 });
-        n4->set_local_number(7);
-        n4->set_global_number(4);
-        n4->set_parent_partition(0);
-
-        auto e2 = mesh.elements().add();
-        e2->initialize(flex_mesh::ElementType::Q2D4N, { n2, n5, n8, n7 });
-        e2->set_local_number(0);
-        e2->set_global_number(2);
-        e2->set_parent_partition(1);
-
-        auto e3 = mesh.elements().add();
-        e3->initialize(flex_mesh::ElementType::Q2D4N, { n5, n6, n9, n8 });
-        e3->set_local_number(1);
-        e3->set_global_number(3);
-        e3->set_parent_partition(1);
-
-        auto e1 = mesh.elements().add();
-        e1->initialize(flex_mesh::ElementType::Q2D4N, { n1, n2, n7, n4 });
-        e1->set_local_number(2);
-        e1->set_global_number(1);
-        e1->set_parent_partition(0);
+        fe_mesh.initialize(std::move(mesh));
     }
+    
 
-    ElementAdjacencyList adjacency_list;
-    adjacency_list.initialize(mesh);
+    mesh::ElementAdjacencyList adjacency_list;
+    adjacency_list.update(fe_mesh.mesh);
 
-    ElementScatterMap element_scatter(mesh, adjacency_list);
+    ElementScatterMap element_scatter;
+    element_scatter.update(fe_mesh, adjacency_list);
 
     DofManager dof_manager;
     if (utility::MPIUtils::get_local_rank() == 0)

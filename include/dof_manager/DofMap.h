@@ -68,7 +68,11 @@ struct DofMap
 
     DofMap();
     DofMap(const DofMap& other);
+    DofMap(DofMap&& other) noexcept;
     ~DofMap();
+
+    DofMap& operator=(const DofMap& other);
+    DofMap& operator=(DofMap&& other) noexcept;
 
     //////////////////////////////////////////////////////////////////////////////////////////
     // Queries

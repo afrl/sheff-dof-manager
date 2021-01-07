@@ -15,14 +15,12 @@ DofMap::DofMap()
 DofMap::DofMap(const DofMap& other)
 {
     *this = other;
-    // Copy the element dof maps so they do not share the same pointers
-    for (auto i : utility::indices(element_to_rank_maps))
-    {
-        element_to_rank_maps[i] = new RankDofIndex[element_n_dofs[i]];
-        std::copy(other.element_to_rank_maps[i],
-                  other.element_to_rank_maps[i] + element_n_dofs[i],
-                  element_to_rank_maps[i]);
-    }
+}
+
+DofMap::DofMap(DofMap&& other) noexcept
+  : DofMap()
+{
+    *this = std::move(other);
 }
 
 DofMap::~DofMap()
@@ -31,6 +29,50 @@ DofMap::~DofMap()
     {
         delete[] map;
     }
+}
+
+DofMap& DofMap::operator=(const DofMap& other)
+{
+    n_owned_elements = other.n_owned_elements;
+    n_owned_dofs     = other.n_owned_dofs;
+    n_local_ghost_dofs = other.n_local_ghost_dofs;
+    n_exclusive_ghost_dofs = other.n_exclusive_ghost_dofs;
+    owned_global_dof_begin = other.owned_global_dof_begin;
+    owned_global_dof_end   = other.owned_global_dof_end;
+    element_n_dofs         = other.element_n_dofs;
+    rank_to_global_map     = other.rank_to_global_map;
+    
+    // Copy the element dof maps so they do not share the same pointers
+    element_to_rank_maps.resize(other.element_to_rank_maps.size(), nullptr);
+    for (auto i : utility::indices(element_to_rank_maps))
+    {
+        if (element_to_rank_maps[i] != nullptr)
+        {
+            delete[] element_to_rank_maps[i];
+        }
+
+        element_to_rank_maps[i] = new RankDofIndex[element_n_dofs[i]];
+        std::copy(other.element_to_rank_maps[i],
+                  other.element_to_rank_maps[i] + element_n_dofs[i],
+                  element_to_rank_maps[i]);
+    }
+
+    return *this;
+}
+
+DofMap& DofMap::operator=(DofMap&& other) noexcept
+{
+    std::swap(n_owned_elements, other.n_owned_elements);
+    std::swap(n_owned_dofs, other.n_owned_dofs);
+    std::swap(n_local_ghost_dofs, other.n_local_ghost_dofs);
+    std::swap(n_exclusive_ghost_dofs, other.n_exclusive_ghost_dofs);
+    std::swap(owned_global_dof_begin, other.owned_global_dof_begin);
+    std::swap(owned_global_dof_end, other.owned_global_dof_end);
+    element_n_dofs.swap(other.element_n_dofs);
+    element_to_rank_maps.swap(other.element_to_rank_maps);
+    rank_to_global_map.swap(other.rank_to_global_map);
+
+    return *this;
 }
 
 ElementToRankDofMap DofMap::get_element_map(const mesh::LocalIndex element_local_number) const

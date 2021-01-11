@@ -5,8 +5,6 @@ find_package(SimpleMath CONFIG REQUIRED HINTS
   "${CMAKE_SOURCE_DIR}/../simple_math/install_dir" "${CMAKE_SOURCE_DIR}/../../simple_math/install_dir" "${CMAKE_SOURCE_DIR}/modules/simple_math/install_dir")
 find_package(Constitutive CONFIG REQUIRED HINTS 
   "${CMAKE_SOURCE_DIR}/../constitutive/install_dir" "${CMAKE_SOURCE_DIR}/../../constitutive/install_dir" "${CMAKE_SOURCE_DIR}/modules/constitutive/install_dir")
-find_package(FlexMesh CONFIG REQUIRED HINTS 
-  "${CMAKE_SOURCE_DIR}/../flex_mesh/install_dir" "${CMAKE_SOURCE_DIR}/../../flex_mesh/install_dir" "${CMAKE_SOURCE_DIR}/modules/flex_mesh/install_dir")
 find_package(FeaIo CONFIG REQUIRED HINTS 
   "${CMAKE_SOURCE_DIR}/../fea_io/install_dir" "${CMAKE_SOURCE_DIR}/../../fea_io/install_dir" "${CMAKE_SOURCE_DIR}/modules/fea_io/install_dir")
 find_package(FiniteElement CONFIG REQUIRED HINTS 

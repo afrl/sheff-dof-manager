@@ -1,6 +1,6 @@
 #include "dof_manager/NodeScatterMap.h"
 
-#include "dof_manager/ScatterMapDestBuilder.h"
+#include "dof_manager/detail/ScatterMapDestBuilder.h"
 #include "utility/MPIUtils.h"
 
 #include <fstream>
@@ -47,7 +47,7 @@ void NodeScatterMap::build_maps(const finite_element::FiniteElementMesh& fe_mesh
     // The node scatter map does not neccessary have the same source/dest ranks for exchanging
     // information.  It is possible that a rank has a node from a specific rank but not an
     // element. So build the correct maps through MPI communication.
-    ScatterMapDestBuilder dest_builder;
+    detail::ScatterMapDestBuilder dest_builder;
     for (auto& node : fe_mesh.mesh.nodes())
     {
         if (node.parent_partition() != this_rank)

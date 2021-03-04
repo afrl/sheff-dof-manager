@@ -1,7 +1,6 @@
 #pragma once
 
 #include "dof_manager/Defines.h"
-#include "dof_manager/SingleDofMap.h"
 #include "finite_element/FiniteElementMesh.h"
 #include "utility/SliceList.h"
 
@@ -13,6 +12,43 @@ using ElementIndex = uint16_t;
 using RankIndex    = uint32_t;
 using GlobalIndex  = uint32_t;
 
+/// @brief A helper class that provide convienient access to an single node or
+/// element's local to rank DoF map using references.
+class ToRankDofMap
+{
+  public:
+    ToRankDofMap(const RankDofIndex* const element_to_rank_map, const ElementDofIndex& n_dofs)
+      : to_rank_map_(element_to_rank_map)
+      , n_dofs_(n_dofs)
+    {
+    }
+
+    inline const RankDofIndex* begin() const
+    {
+        return to_rank_map_;
+    }
+    inline const RankDofIndex* end() const
+    {
+        return &to_rank_map_[n_dofs_];
+    }
+    inline RankDofIndex operator[](const ElementDofIndex i) const
+    {
+        return to_rank_map_[i];
+    }
+    inline ElementDofIndex size() const
+    {
+        return n_dofs_;
+    }
+
+  private:
+    const RankDofIndex* const to_rank_map_;
+    const ElementDofIndex& n_dofs_;
+};
+
+using NodeToRankDofMap    = ToRankDofMap;
+using ElementToRankDofMap = ToRankDofMap;
+
+/// @brief Stores all neccessary maps for degrees of freedom (DoFs)
 struct DofMap
 {
     /// The number of elements owned by this rank

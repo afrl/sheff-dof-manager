@@ -3,8 +3,6 @@
 #include "dof_manager/Defines.h"
 #include "dof_manager/DofMap.h"
 #include "dof_manager/ElementScatterMap.h"
-#include "dof_manager/EnrichmentPhaseData.h"
-#include "dof_manager/RenumberStructs.h"
 #include "finite_element/FiniteElementMesh.h"
 
 #include <set>
@@ -12,10 +10,22 @@
 
 namespace dof_manager
 {
-// TODO rename to DofMap and rename the other class to DofManager
+namespace detail
+{
+struct BasalFieldCompatibilityMap;
+}
+
+/// @brief  Creates degree of freedom (DoF) maps for a given state of a finite element analysis that
+/// may include Hierarchical Heaviside Enrichment.
 class DofManager
 {
   public:
+    DofManager();
+    DofManager(DofManager&& other) noexcept;
+    ~DofManager();
+
+    DofManager& operator=(DofManager&& other);
+
     //////////////////////////////////////////////////////////////////////////////////////////
     // Accessors
 
@@ -23,26 +33,22 @@ class DofManager
     {
         return dof_map_;
     }
-    const EnrichmentPhaseData& get_enrichment_data() const
-    {
-        return enrichment_data_;
-    }
     DofMap get_dof_maps_copy() const
     {
         return dof_map_;
     }
-    EnrichmentPhaseData get_enrichment_data_copy() const
-    {
-        return enrichment_data_;
-    }
+
+    /// TODO
+    const detail::BasalFieldCompatibilityMap& get_updated_basal_field_compatibility_map(
+      const finite_element::FiniteElementMesh& fe_mesh,
+      const mesh::ElementAdjacencyList& element_adjacency) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////
     // Modifiers
 
-    /// Enumerates the DoF's for the initial state before any enrichment occurs.  This is
-    /// not allowed to be called multiple times.  It should only occur once near the beginning
-    /// of an analysis.
+    /// Enumerates the DoF's for any state, even if enrichments exist.
     void enumerate(const finite_element::FiniteElementMesh& fe_mesh,
+                   const mesh::ElementAdjacencyList& element_adjacency,
                    const ElementScatterMap& scatter_map);
 
     /// Sets the DoF enumeration state, allowing unit testing or a custom external initial
@@ -55,55 +61,38 @@ class DofManager
                                 const std::vector<std::vector<RankDofIndex>>& element_to_rank_maps,
                                 const std::vector<GlobalDofIndex>& rank_to_global_map);
 
-    /// Adds a new dof to the system adn returns the rank-level number, which
-    /// can be used in the element-to-rank and node-to-element maps.
+    /// Indicates to the DofManager that an element was enriched.  The element-to-rank map will be
+    /// modified to ensure that global linear algebra vectors can still be accessed during the
+    /// enrichment phase.  To accomplish this, the rank DoF's for the basal field that was enriched
+    /// is simply appended (a copy) to the end of the element-to-rank map, thus depending on the
+    /// convention that an enrichment reuses the enriched basal field and appends a new one.
     ///
-    /// \param original_sibling_dof - the existing dof that new_dof was created
-    ///     to be a sibling to.  In the xfem code, when an element is enriched,
-    ///     the old dof is used for one basal field, while a new dof is created
-    ///     for the other basal field.  This parameter is the old dof.
-    ///
-    /// Note: because of this modifies counters and containers, enrichment of
-    ///       elements MUST be serial on each rank or a data race will ensue.
-    ///       However, atomic operations could be implemented in the future.
-    /// Note: if new DoF's need to be added for other reasons than XFEM, then
-    ///       another version of add_new_dof should be created.
-    RankDofIndex add_new_dof(const RankDofIndex original_sibling_dof);
+    /// @important During enrichment phase, the DoF maps are in a state that allows the solution
+    ///            vector to remain valid but also in a state that is very non-physical if the
+    ///            solver were to be invoked.  Be sure to call renumber before solving after
+    ///            new enrichments have been added.
+    void new_enrichment_callback(const finite_element::FiniteElementConstAccessor& fe_accessor,
+                                 const finite_element::LeafIndex& basal_field_enriched);
 
-    /// Assign a new set of DoF's to an existing element, enriching the number DoF's
-    /// for that element.
+    /// Completely renumbers rank and global DoF indices to properly account for any new enrichments
+    /// that have occurred. This first incrementally updates the inter-element basal field
+    /// compatibility map, and then, second, uses the map to quickly create a new DoF enumeration.
     ///
-    /// \param local_element_number - the rank-based local index of the element to enrich
-    /// \param replacement_dofs - the ordered list of DoF's for all fields of the element
-    ///        to replace the element-to-rank map with.
-    ///
-    /// Note: be sure to call add_new_dof() beforehand for any new DoF's that may
-    ///       appear in replacement_dofs.
-    void enrich_element(const mesh::LocalIndex& local_element_number,
-                        const std::vector<RankDofIndex>& replacement_dofs);
-
-    /// Mark that a dof should be combined into another during the next renumbering phase.
-    /// Sometimes, a compatibility of two enrichments will require combining dof's.
-    /// During the enrichment phase, either dof can be used interchangably, and during
-    /// renumbering, one will be combined into another.
-    void queue_dof_combination(RankDofIndex rank_dof_to_combine,
-                               RankDofIndex rank_dof_to_combine_into);
-
-    /// Renumbering the rank and global numbering of all DoF's to account for:
-    /// 1) New DoF's from enrichment
-    /// 2) Combining DoF's
-    /// 3) Moving DoF's between intervals
-    ///
-    /// Returns a RenumberingPhaseData object, which can be used by linear algebra containers
-    /// to preserve the vectors in terms of the source DoF's or update preconditioners.
-    RenumberingPhaseData renumber(const ElementScatterMap& element_scatter);
+    /// @returns A map from the new rank numbering (the index of the vector) to rank
+    /// index of the DoF to clone the value from (the value of the vector) in order to retain a
+    /// valid solution vector (and possibly preconditioners if they are very expensive to build).
+    /// Heaviside enrichment splits a basal field into two, and though each of the two child fields
+    /// have their own DoF's, it is still acknowledged that they were cloned from the original
+    /// field's DoF's.
+    std::vector<RankDofIndex> renumber(const finite_element::FiniteElementMesh& fe_mesh,
+                                       const mesh::ElementAdjacencyList& element_adjacency,
+                                       const ElementScatterMap& scatter_map);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     // Queries
 
-    /// Determines if a renumber is required (depends on if there were any enrichments
-    /// or DoF combinations on any rank).
-    bool requires_renumber() const;
+    /// Determines if a renumber is required (depends on if there were any enrichments on any rank).
+    bool requires_renumber(const finite_element::FiniteElementMesh& fe_mesh) const;
 
     //////////////////////////////////////////////////////////////////////////////////////////////
     // Serailization methods
@@ -124,9 +113,11 @@ class DofManager
     /// Stores the rank-to-global and element-to-rank maps along with some important
     /// counts that define various intervals.
     DofMap dof_map_;
-    /// Stores information needed to track DoF modifications during enrichment phase.
-    /// This is reset each time renumber() is called.
-    EnrichmentPhaseData enrichment_data_;
+
+    /// A map that indicates which basal fields in adjacent elements any given basal field is
+    /// compatible with.  This can be incrementally updated when renumber() is called to account for
+    /// new enrichments, and allows a quick enumeration of DoF's.
+    std::unique_ptr<detail::BasalFieldCompatibilityMap> basal_field_compatibility_map_;
 };
 
 }

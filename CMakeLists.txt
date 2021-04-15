@@ -4,11 +4,11 @@ cmake_policy(SET CMP0048 NEW)
 project(DOFMANAGER VERSION 1.0.0 LANGUAGES CXX)
 
 # Options
-option(DOFMANAGER_BuildTests "Build the unit tests." OFF)
+option(SHEFF_BuildTests "Build the unit tests." OFF)
 
 # For debugging, print generator, compiler, and options
 message(STATUS "Gen: ${CMAKE_GENERATOR}, CXX: ${CMAKE_CXX_COMPILER_ID}, Mode: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Tests: ${DOFMANAGER_BuildTests}")
+message(STATUS "Tests: ${SHEFF_BuildTests}")
 
 # Add cmake dir to module path
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -78,7 +78,7 @@ assign_source_groups_sheff()
 #################################
     
 # Build tests
-if(DOFMANAGER_BuildTests)
+if(SHEFF_BuildTests)
     include(CTest)
     enable_testing()
     add_subdirectory(unit_tests)

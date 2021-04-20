@@ -331,9 +331,9 @@ void DofManager::enumerate(const finite_element::FiniteElementMesh& fe_mesh,
     basal_field_compatibility_map_ = std::make_unique<detail::BasalFieldCompatibilityMap>(
       detail::build_initial_compatibity_map(fe_mesh, element_adjacency));
 
-    detail::write_compatibility_graph("initial_compatibility_graph",
-                                      fe_mesh,
-                                      *basal_field_compatibility_map_);
+    //detail::write_compatibility_graph("initial_compatibility_graph",
+    //                                  fe_mesh,
+    //                                  *basal_field_compatibility_map_);
 
     dof_map_ =
       enumeration_kernel(fe_mesh, element_adjacency, scatter_map, *basal_field_compatibility_map_);

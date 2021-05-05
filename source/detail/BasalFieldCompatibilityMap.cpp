@@ -195,7 +195,8 @@ static void update_second_neighbor_compatibilities(
             };
             for (auto i : utility::range(n_neighbors))
             {
-                element_to_matrix_index_map.insert({ neighbors[i], i + 1 });
+                element_to_matrix_index_map.insert(
+                  { neighbors[i], static_cast<mesh::ConnIndex>(i + 1) });
                 neighborhood_adjacency_matrix(0, i + 1) = true;
                 neighborhood_adjacency_matrix(i + 1, 0) = true;
             }

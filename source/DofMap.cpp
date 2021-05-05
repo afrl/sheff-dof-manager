@@ -118,7 +118,7 @@ const std::string DofMap::str(const finite_element::FiniteElementMesh& fe_mesh) 
     std::stringstream ss;
     ss << "Element to Rank Map:" << std::endl;
     ss << element_n_dofs.size() << " elements" << std::endl;
-    for (auto i : utility::range(element_n_dofs.size()))
+    for (auto i : utility::range_as<mesh::LocalIndex>(element_n_dofs.size()))
     {
         ss << fe_mesh.mesh.elements()[i].global_index() << " : ";
         for (auto j : utility::range(element_n_dofs[i]))

@@ -67,7 +67,8 @@ static void create_compatibilities_with_neighbors(
     auto& this_element = fe.element;
     finite_element::EnrichmentTreeTraverser this_tree_traverser(fe);
 
-    for (auto& neighbor_element : element_adjacency.get_elements(this_element.local_index()))
+    for (auto& neighbor_element :
+         element_adjacency.get_adjacent_elements(this_element.local_index()))
     {
         // Since compatibility entries are symmetric, to avoid duplicate compatibility entries, the
         // relationship will be processed for the element with the lower local index of two given
@@ -174,7 +175,7 @@ static void update_second_neighbor_compatibilities(
     for (auto element_index : utility::range(fe_mesh.mesh.elements().size()))
     {
         auto requires_update = element_update_flags[element_index];
-        for (auto& n : element_adjacency.get_element_indices(element_index))
+        for (auto& n : element_adjacency.get_adjacent_element_indices(element_index))
         {
             requires_update |= element_update_flags[n];
         }
@@ -186,7 +187,7 @@ static void update_second_neighbor_compatibilities(
 
             // Build neighborhood adjacency matrix
             // TODO move this to the adjacency list class
-            auto neighbors   = element_adjacency.get_element_indices(element_index);
+            auto neighbors   = element_adjacency.get_adjacent_element_indices(element_index);
             auto n_neighbors = neighbors.size();
             simple_math::DynamicBoolMatrix neighborhood_adjacency_matrix =
               simple_math::DynamicBoolMatrix::Zero(n_neighbors + 1, n_neighbors + 1);
@@ -202,8 +203,9 @@ static void update_second_neighbor_compatibilities(
             }
             for (auto i : utility::range(n_neighbors))
             {
-                auto row_index             = i + 1;
-                auto neighbors_of_neighbor = element_adjacency.get_element_indices(neighbors[i]);
+                auto row_index = i + 1;
+                auto neighbors_of_neighbor =
+                  element_adjacency.get_adjacent_element_indices(neighbors[i]);
                 for (auto& neighbor_of_neighbor : neighbors_of_neighbor)
                 {
                     auto find_iter = element_to_matrix_index_map.find(neighbor_of_neighbor);

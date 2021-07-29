@@ -100,7 +100,7 @@ void ElementScatterMap::build_send_maps(const finite_element::FiniteElementMesh&
     {
         if (fe.element.parent_partition() == this_rank)
         {
-            for (auto& neighbor : adjacency.get_elements(fe.element.local_index()))
+            for (auto& neighbor : adjacency.get_adjacent_elements(fe.element.local_index()))
             {
                 if (neighbor.parent_partition() != this_rank)
                 {

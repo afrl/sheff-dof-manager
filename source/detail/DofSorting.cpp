@@ -19,7 +19,7 @@ std::vector<std::size_t> sort_intervals(DofMap& dof_map)
             auto& rank_index   = element_to_rank_map[i];
             auto& global_index = dof_map.rank_to_global_map[rank_index];
             if (global_index >= dof_map.owned_global_dof_begin &&
-                global_index <= dof_map.owned_global_dof_end)
+                global_index < dof_map.owned_global_dof_end)
             {
                 dof_types_map[rank_index] = DofType::OWNED;
             }

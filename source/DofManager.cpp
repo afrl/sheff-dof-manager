@@ -192,7 +192,7 @@ static DofMap enumeration_kernel(
     new_dof_map.rank_to_global_map.resize(n_owned_dofs + n_ghost_dofs, GLOBAL_UNITIALIZED_DOF);
     for (auto i : utility::range(n_owned_dofs))
     {
-        new_dof_map.rank_to_global_map[i] = i;
+        new_dof_map.rank_to_global_map[i] = new_dof_map.owned_global_dof_begin + i;
     }
     // At this point, the rank-to-global map is only half complete.  The owned DoFs are enumerated,
     // but MPI communication is needed for ghost DoF's

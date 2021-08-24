@@ -35,7 +35,7 @@ static DofMap enumeration_kernel(
     new_dof_map.element_to_rank_maps.resize(fe_mesh.mesh.elements().size(), nullptr);
     new_dof_map.element_n_dofs.resize(fe_mesh.mesh.elements().size());
     new_dof_map.n_owned_elements = 0;
-    for (auto& fe : fe_mesh.finite_elements())
+    for (auto fe : fe_mesh.finite_elements())
     {
         const auto& element_index = fe.element.local_index();
         const ElementDofIndex n_dofs_per_field =
@@ -58,7 +58,7 @@ static DofMap enumeration_kernel(
 
     RankDofIndex owned_count = 0;
     RankDofIndex ghost_count = 0;
-    for (auto& fe : fe_mesh.finite_elements())
+    for (auto fe : fe_mesh.finite_elements())
     {
         const auto& element_index = fe.element.local_index();
         const ElementDofIndex n_dofs_per_field =
@@ -162,7 +162,7 @@ static DofMap enumeration_kernel(
 
     // Go back over the element-to-rank DoF map and increment all ghost DoF's (rank numbering) to
     // start at the end of the owned DoF range
-    for (auto& fe : fe_mesh.finite_elements())
+    for (auto fe : fe_mesh.finite_elements())
     {
         const auto& element_index = fe.element.local_index();
         const ElementDofIndex n_dofs_per_field =

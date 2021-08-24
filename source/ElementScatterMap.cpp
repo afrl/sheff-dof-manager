@@ -47,7 +47,7 @@ void ElementScatterMap::build_receive_maps(const finite_element::FiniteElementMe
     // The set maintain a list of unique pairs sorted first by partition then by
     // local element number.
     std::set<std::pair<int, ElementLocalIndex>> elements_to_receive_set;
-    for (auto& fe : fe_mesh.finite_elements())
+    for (auto fe : fe_mesh.finite_elements())
     {
         if (fe.element.parent_partition() != this_rank)
         {
@@ -96,7 +96,7 @@ void ElementScatterMap::build_send_maps(const finite_element::FiniteElementMesh&
     // The set maintain a list of unique pairs sorted first by partition then by
     // local element number.
     std::set<std::pair<int, ElementLocalIndex>> elements_to_send_set;
-    for (auto& fe : fe_mesh.finite_elements())
+    for (auto fe : fe_mesh.finite_elements())
     {
         if (fe.element.parent_partition() == this_rank)
         {

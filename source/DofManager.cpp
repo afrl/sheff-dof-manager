@@ -285,6 +285,41 @@ static DofMap enumeration_kernel(
         assert(curr_offset == receive_offsets[source_rank.index + 1]);
     }
 
+#ifndef NDEBUG
+    bool found_problem = false;
+    for (auto fe : fe_mesh.finite_elements())
+    {
+        const auto& element_index = fe.element.local_index();
+        const ElementDofIndex n_dofs_per_field =
+          static_cast<ElementDofIndex>(fe.element.connectivity().size() * n_dofs_per_point);
+        auto& element_dof_map = new_dof_map.element_to_rank_maps[element_index];
+        for (auto basal_field_index : utility::range(fe.layout.get_n_basal_fields()))
+        {
+            auto basal_field_dof_map = &element_dof_map[basal_field_index * n_dofs_per_field];
+            for (auto node_conn_index : utility::range(fe.element.connectivity().size()))
+            {
+                const auto& rank_dof   = basal_field_dof_map[node_conn_index * n_dofs_per_point];
+                const auto& global_dof = new_dof_map.rank_to_global_map[rank_dof];
+                if (global_dof < 0 || global_dof == GLOBAL_UNITIALIZED_DOF)
+                {
+                    found_problem = true;
+                    std::cout << "Rank " << local_rank << " element " << fe.element.local_index()
+                              << " (global_id " << fe.element.global_index() << ") basal_field "
+                              << basal_field_index << " node " << (int)node_conn_index
+                              << " (global_id " << fe.element.node(node_conn_index).global_index()
+                              << ")" << std::endl;
+                }
+            }
+        }
+    }
+    if (found_problem)
+    {
+        throw _UTIL_MSG_EXCEPT(
+          "An error occurred during DoF enumeration.  Perhaps the partitioning is messed up?  See "
+          "previous messages about which DoFs at which nodal positions were problems.");
+    }
+#endif
+
     detail::sort_intervals(new_dof_map);
 
     return new_dof_map;
@@ -331,7 +366,7 @@ void DofManager::enumerate(const finite_element::FiniteElementMesh& fe_mesh,
     basal_field_compatibility_map_ = std::make_unique<detail::BasalFieldCompatibilityMap>(
       detail::build_initial_compatibity_map(fe_mesh, element_adjacency));
 
-    //detail::write_compatibility_graph("initial_compatibility_graph",
+    // detail::write_compatibility_graph("initial_compatibility_graph",
     //                                  fe_mesh,
     //                                  *basal_field_compatibility_map_);
 

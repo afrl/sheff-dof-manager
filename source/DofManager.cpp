@@ -215,8 +215,9 @@ static DofMap enumeration_kernel(
             // communicated data.
             for (auto j : utility::range(new_dof_map.element_n_dofs[local_element_index]))
             {
-                auto& rank_index = new_dof_map.element_to_rank_maps[local_element_index][j];
-                send_buffer.push_back(new_dof_map.rank_to_global_map[rank_index]);
+                const auto& rank_index   = new_dof_map.element_to_rank_maps[local_element_index][j];
+                const auto& global_index = new_dof_map.rank_to_global_map[rank_index];
+                send_buffer.push_back(global_index);
             }
         }
         send_offsets.push_back(send_buffer.size()); // Marks the end of the data sent to "dest_rank"

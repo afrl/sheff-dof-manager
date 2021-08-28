@@ -4,6 +4,8 @@
 #include "dof_manager/detail/ScatterMapHelpers.h"
 #include "finite_element/FiniteElementMesh.h"
 
+#include <vector>
+
 namespace dof_manager
 {
 /// Stores which owned elements needs to be sent to other ranks and which ghost
@@ -39,19 +41,16 @@ struct ElementScatterMap
     /// send to.  Length: (# of destination ranks + 1)
     /// Range of elements to send for a particular rank is elements_to_send[rank_offsets[i]]
     /// to elements_to_send[rank_offsets[i + 1]] for destination rank i.
-    std::vector<size_t> rank_send_offsets;
+    std::vector<std::size_t> rank_send_offsets;
 
     /// Ranks to receive ghost elements from elements to.  Length (# of source ranks)
     std::vector<int> source_ranks;
     /// Contains the list of element indices to receive from other ranks.
     std::vector<ElementLocalIndex> elements_to_receive;
     /// See rank_send_offsets for an explanation of the structure
-    std::vector<size_t> rank_receive_offsets;
+    std::vector<std::size_t> rank_receive_offsets;
 
     ElementScatterMap() {}
-
-    void update(const finite_element::FiniteElementMesh& fe_mesh,
-                const mesh::ElementAdjacencyList& adjacency);
 
     /// Provides a convenient way to iterate over the destination ranks with a
     /// range-based loop.  See the ElementScatterMap description for an example.
@@ -71,15 +70,25 @@ struct ElementScatterMap
     detail::ScatterElementRange elements_to_receive_range(
       const detail::RankIndexValuePair& rank_pair) const;
 
-    /// @brief Indicates whether update has been called at least once.  This does not indicate if the
-    /// scatter map is still valid, and adding elements or dynamic load balancing to the mesh will
-    /// indeed invalidate the scatter map.
+    /// @brief Indicates whether update has been called at least once.  This does not indicate if
+    /// the scatter map is still valid, and adding elements or dynamic load balancing to the mesh
+    /// will indeed invalidate the scatter map.
     bool initialized() const;
-
-  private:
-    void build_receive_maps(const finite_element::FiniteElementMesh& fe_mesh);
-
-    void build_send_maps(const finite_element::FiniteElementMesh& fe_mesh,
-                         const mesh::ElementAdjacencyList& adjacency);
 };
+
+/// Sets up the element scatter map, such that
+/// 
+/// This rank receives:
+/// - Any ghost elements from the respective rank
+/// - Any element (ghost or owned) that contains a ghost node from the respective rank of the ghost
+///   node
+/// 
+/// This rank sends:
+/// - Any owned elements that are adjacent to a ghost element to the respective rank of the ghost
+///   element
+/// - Any ghost element that contains an owned node to all ranks that own a node in the element (all
+///   owned elements that could appear as a ghost on another rank are already included)
+void update_element_scatter_map(const finite_element::FiniteElementMesh& fe_mesh,
+                                const mesh::ElementAdjacencyList& adjacency,
+                                ElementScatterMap& scatter_map);
 }

@@ -2,6 +2,8 @@
 
 #include "utility/MPIUtils.h"
 
+#include <fstream>
+
 namespace dof_manager
 {
 namespace detail
@@ -168,6 +170,28 @@ void update_element_scatter_map(const finite_element::FiniteElementMesh& fe_mesh
     }
 
     detail::build_send_maps(elements_to_send_set, scatter_map);
+}
+
+void dump_scatter_map(const std::string& filepath, const ElementScatterMap& scatter_map)
+{
+    std::ofstream out(filepath);
+    for (auto dest_rank : scatter_map.destination_ranks_range())
+    {
+        out << "Destination rank: " << dest_rank.rank << std::endl;
+        for (auto local_element_index : scatter_map.elements_to_send_range(dest_rank))
+        {
+            out << local_element_index << std::endl;
+        }
+    }
+    for (auto source_rank : scatter_map.source_ranks_range())
+    {
+        out << "Source rank: " << source_rank.rank << std::endl;
+        for (auto local_element_index : scatter_map.elements_to_receive_range(source_rank))
+        {
+            out << local_element_index << std::endl;
+        }
+    }
+    out.close();
 }
 
 }

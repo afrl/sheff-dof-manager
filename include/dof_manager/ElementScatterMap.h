@@ -77,12 +77,12 @@ struct ElementScatterMap
 };
 
 /// Sets up the element scatter map, such that
-/// 
+///
 /// This rank receives:
 /// - Any ghost elements from the respective rank
 /// - Any element (ghost or owned) that contains a ghost node from the respective rank of the ghost
 ///   node
-/// 
+///
 /// This rank sends:
 /// - Any owned elements that are adjacent to a ghost element to the respective rank of the ghost
 ///   element
@@ -91,4 +91,6 @@ struct ElementScatterMap
 void update_element_scatter_map(const finite_element::FiniteElementMesh& fe_mesh,
                                 const mesh::ElementAdjacencyList& adjacency,
                                 ElementScatterMap& scatter_map);
+
+void dump_scatter_map(const std::string& filepath, const ElementScatterMap& scatter_map);
 }

@@ -8,6 +8,8 @@
 #include "finite_element/hhe_primitives/PrimitiveAlgorithms.h"
 #include "utility/MPIUtils.h"
 
+#include <fstream>
+
 namespace dof_manager
 {
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -197,18 +199,25 @@ static DofMap enumeration_kernel(
     // At this point, the rank-to-global map is only half complete.  The owned DoFs are enumerated,
     // but MPI communication is needed for ghost DoF's
 
+    
+    std::ofstream dof_out("dof_log_" + std::to_string(local_rank) + ".txt");
+
+    // dof_out << "Building send buffer..." << std::endl;
     // Build the buffer containing the element-to-global map for elements on this rank that appear
     // as ghost elements on other ranks.
     std::vector<GlobalDofIndex> send_buffer;
     std::vector<size_t> send_offsets = { 0 };
     for (auto dest_rank : scatter_map.destination_ranks_range())
     {
+        // dof_out << "Buffer to rank " << dest_rank.rank << std::endl;
         for (auto local_element_index : scatter_map.elements_to_send_range(dest_rank))
         {
+            // dof_out << "For element l" << local_element_index << " g" << fe_mesh.mesh.elements()[local_element_index].global_index() << " : ";
             // It is not neccessary to send the # of DoF's for the element, since the destination
             // rank can figure that out from the # of basal fields.  However, we will send it for
             // the sake of checking that ranks are consistent.
             send_buffer.push_back(new_dof_map.element_n_dofs[local_element_index]);
+            // dof_out << new_dof_map.element_n_dofs[local_element_index] << " ";
 
             // Note that this is also sending useless information for ghost DoF's (which are
             // equal to GLOBAL_UNINITIALIZED_DOF).  Ghost DoFs could be left off to reduce
@@ -218,9 +227,22 @@ static DofMap enumeration_kernel(
                 const auto& rank_index   = new_dof_map.element_to_rank_maps[local_element_index][j];
                 const auto& global_index = new_dof_map.rank_to_global_map[rank_index];
                 send_buffer.push_back(global_index);
+                // dof_out << global_index << " ";
             }
+            // dof_out << std::endl;
         }
         send_offsets.push_back(send_buffer.size()); // Marks the end of the data sent to "dest_rank"
+    }
+
+    // dof_out << "Send buffers:" << std::endl;
+    for (auto dest_rank : scatter_map.destination_ranks_range())
+    {
+        // dof_out << "To rank " << dest_rank.rank << std::endl;
+        for (auto o = send_offsets[dest_rank.index]; o < send_offsets[dest_rank.index + 1]; o++)
+        {
+            // dof_out << send_buffer[o] << " ";
+        }
+        // dof_out << std::endl;
     }
 
     // Exchange data with ghost layers
@@ -236,11 +258,25 @@ static DofMap enumeration_kernel(
       receive_buffer,
       receive_offsets);
 
+    // dof_out << "Receive buffers:" << std::endl;
+    for (auto source_rank : scatter_map.source_ranks_range())
+    {
+        // dof_out << "To rank " << source_rank.rank << std::endl;
+        for (auto o = receive_offsets[source_rank.index]; o < receive_offsets[source_rank.index + 1]; o++)
+        {
+            // dof_out << receive_buffer[o] << " ";
+        }
+        // dof_out << std::endl;
+    }
+
+    // dof_out << "Preupdate DoF Map" << std::endl << new_dof_map.str(fe_mesh) << std::endl;
+
     // Update the rank-to-global map for all of the ghost DoF's based on the element-to-global maps
     // received from other ranks.  Note: this hinges on the partitioning algorithm ensuring any
     // owned node appears in at least one owned element.
     for (auto source_rank : scatter_map.source_ranks_range())
     {
+        // dof_out << "Buffer from rank " << source_rank.rank << std::endl;
         auto curr_offset = receive_offsets[source_rank.index];
         for (auto local_element_index : scatter_map.elements_to_receive_range(source_rank))
         {
@@ -249,9 +285,13 @@ static DofMap enumeration_kernel(
             auto n_dofs_for_element = receive_buffer[curr_offset++];
             assert(new_dof_map.element_n_dofs[local_element_index] == n_dofs_for_element);
 
+            // dof_out << "For element l" << local_element_index << " g" << fe_mesh.mesh.elements()[local_element_index].global_index() << " : ";
+
             auto fe = fe_mesh.get_finite_element(local_element_index);
             const ElementDofIndex n_dofs_per_field =
               static_cast<ElementDofIndex>(fe.element.connectivity().size() * n_dofs_per_point);
+
+
             auto& element_dof_map = new_dof_map.element_to_rank_maps[local_element_index];
             for (auto basal_field_index : utility::range(fe.layout.get_n_basal_fields()))
             {
@@ -261,13 +301,14 @@ static DofMap enumeration_kernel(
                 // a new number.
                 for (auto node_conn_index : utility::range(fe.element.connectivity().size()))
                 {
-                    if (fe.element.node(node_conn_index).parent_partition() != local_rank)
+                    if (fe.element.node(node_conn_index).parent_partition() == source_rank.rank)
                     {
                         for (auto i : utility::range(n_dofs_per_point))
                         {
                             auto global_dof = receive_buffer[curr_offset++];
                             auto rank_dof =
                               basal_field_dof_map[node_conn_index * n_dofs_per_point + i];
+                            // dof_out << "(" << (int)basal_field_index << ", " << (int)node_conn_index << ", g" << fe.element.node(node_conn_index).global_index() << ", " << rank_dof << " -> " << global_dof << ") ";
 
                             assert(new_dof_map.rank_to_global_map[rank_dof] ==
                                      GLOBAL_UNITIALIZED_DOF ||
@@ -281,12 +322,25 @@ static DofMap enumeration_kernel(
                         curr_offset += n_dofs_per_point;
                     }
                 }
+
+                // dof_out << "\nUpdated global map : ";
+                for (auto i : utility::range(n_dofs_per_field))
+                {
+                    // dof_out << basal_field_dof_map[i] << " ";
+                }
             }
+
+            // dof_out << std::endl;
         }
         assert(curr_offset == receive_offsets[source_rank.index + 1]);
     }
 
-#ifndef NDEBUG
+    //dof_out << "Postupdate DoF Map" << std::endl << new_dof_map.str(fe_mesh) << std::endl;
+
+//#ifndef NDEBUG
+    dump_scatter_map("e_scatter_" + std::to_string(local_rank) + ".txt", scatter_map, fe_mesh.mesh);
+
+    dof_out << "Problems: " << std::endl;
     bool found_problem = false;
     for (auto fe : fe_mesh.finite_elements())
     {
@@ -304,22 +358,24 @@ static DofMap enumeration_kernel(
                 if (global_dof < 0 || global_dof == GLOBAL_UNITIALIZED_DOF)
                 {
                     found_problem = true;
-                    std::cout << "Rank " << local_rank << " element " << fe.element.local_index()
-                              << " (global_id " << fe.element.global_index() << ") basal_field "
-                              << basal_field_index << " node " << (int)node_conn_index
-                              << " (global_id " << fe.element.node(node_conn_index).global_index()
-                              << ")" << std::endl;
+                    dof_out << "r" << local_rank << " el" << fe.element.local_index()
+                              << " eg" << fe.element.global_index() << " b"
+                              << (int)basal_field_index << " nc" << (int)node_conn_index
+                              << " ng" << fe.element.node(node_conn_index).global_index()
+                              << " dg " << global_dof << " dl " << rank_dof
+                              << std::endl;
                 }
             }
         }
     }
+    dof_out.close();
     if (found_problem)
     {
         throw _UTIL_MSG_EXCEPT(
           "An error occurred during DoF enumeration.  Perhaps the partitioning is messed up?  See "
           "previous messages about which DoFs at which nodal positions were problems.");
     }
-#endif
+//#endif
 
     detail::sort_intervals(new_dof_map);
 

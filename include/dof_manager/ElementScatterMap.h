@@ -92,5 +92,7 @@ void update_element_scatter_map(const finite_element::FiniteElementMesh& fe_mesh
                                 const mesh::ElementAdjacencyList& adjacency,
                                 ElementScatterMap& scatter_map);
 
-void dump_scatter_map(const std::string& filepath, const ElementScatterMap& scatter_map);
+void dump_scatter_map(const std::string& filepath,
+                      const ElementScatterMap& scatter_map,
+                      const mesh::Mesh& mesh);
 }

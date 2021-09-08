@@ -200,7 +200,7 @@ static DofMap enumeration_kernel(
     // but MPI communication is needed for ghost DoF's
 
     
-    std::ofstream dof_out("dof_log_" + std::to_string(local_rank) + ".txt");
+    //std::ofstream dof_out("dof_log_" + std::to_string(local_rank) + ".txt");
 
     // dof_out << "Building send buffer..." << std::endl;
     // Build the buffer containing the element-to-global map for elements on this rank that appear
@@ -337,6 +337,7 @@ static DofMap enumeration_kernel(
 
     //dof_out << "Postupdate DoF Map" << std::endl << new_dof_map.str(fe_mesh) << std::endl;
 
+    /*
 //#ifndef NDEBUG
     dump_scatter_map("e_scatter_" + std::to_string(local_rank) + ".txt", scatter_map, fe_mesh.mesh);
 
@@ -376,6 +377,7 @@ static DofMap enumeration_kernel(
           "previous messages about which DoFs at which nodal positions were problems.");
     }
 //#endif
+    */
 
     detail::sort_intervals(new_dof_map);
 

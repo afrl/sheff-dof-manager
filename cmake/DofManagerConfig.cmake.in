@@ -1,14 +1,14 @@
 # Make sure we have public dependencies available
-find_package(Utility CONFIG REQUIRED HINTS 
-  "${CMAKE_SOURCE_DIR}/../utility/install_dir" "${CMAKE_SOURCE_DIR}/../../utility/install_dir" "${CMAKE_SOURCE_DIR}/modules/utility/install_dir")
-find_package(SimpleMath CONFIG REQUIRED HINTS 
-  "${CMAKE_SOURCE_DIR}/../simple_math/install_dir" "${CMAKE_SOURCE_DIR}/../../simple_math/install_dir" "${CMAKE_SOURCE_DIR}/modules/simple_math/install_dir")
-find_package(Constitutive CONFIG REQUIRED HINTS 
-  "${CMAKE_SOURCE_DIR}/../constitutive/install_dir" "${CMAKE_SOURCE_DIR}/../../constitutive/install_dir" "${CMAKE_SOURCE_DIR}/modules/constitutive/install_dir")
-find_package(FeaIo CONFIG REQUIRED HINTS 
-  "${CMAKE_SOURCE_DIR}/../fea_io/install_dir" "${CMAKE_SOURCE_DIR}/../../fea_io/install_dir" "${CMAKE_SOURCE_DIR}/modules/fea_io/install_dir")
-find_package(FiniteElement CONFIG REQUIRED HINTS 
-  "${CMAKE_SOURCE_DIR}/../finite_element/install_dir" "${CMAKE_SOURCE_DIR}/../../finite_element/install_dir" "${CMAKE_SOURCE_DIR}/modules/finite_element/install_dir")
+find_package(Utility CONFIG REQUIRED NO_CMAKE_SYSTEM_PACKAGE_REGISTRY HINTS 
+  "${CMAKE_SOURCE_DIR}/../../first_party/utility/build")
+find_package(SimpleMath CONFIG REQUIRED NO_CMAKE_SYSTEM_PACKAGE_REGISTRY HINTS 
+  "${CMAKE_SOURCE_DIR}/../../first_party/simple_math/build")
+find_package(Constitutive CONFIG REQUIRED NO_CMAKE_SYSTEM_PACKAGE_REGISTRY HINTS 
+  "${CMAKE_SOURCE_DIR}/../../first_party/constitutive/build")
+find_package(FeaIo CONFIG REQUIRED NO_CMAKE_SYSTEM_PACKAGE_REGISTRY HINTS 
+  "${CMAKE_SOURCE_DIR}/../../first_party/fea_io/build")
+find_package(FiniteElement CONFIG REQUIRED NO_CMAKE_SYSTEM_PACKAGE_REGISTRY HINTS 
+  "${CMAKE_SOURCE_DIR}/../../first_party/finite_element/build")
 
 
 if(NOT TARGET DofManager::DofManager)

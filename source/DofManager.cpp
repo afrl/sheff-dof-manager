@@ -378,7 +378,6 @@ static DofMap enumeration_kernel(
     }
 //#endif
     */
-
     detail::sort_intervals(new_dof_map);
 
     return new_dof_map;

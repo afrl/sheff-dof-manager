@@ -148,6 +148,7 @@ void update_element_scatter_map(const finite_element::FiniteElementMesh& fe_mesh
             mesh::write_vtk(fe_mesh.mesh, "rank_1_part.vtk", false);
         }
 
+        /*
         std::ofstream problem_out("e_receive_" + std::to_string(this_rank) + ".txt");
         problem_out << "Rank local_e_index global_e_index" << std::endl;
         for (auto& v : elements_to_receive_set)
@@ -156,6 +157,7 @@ void update_element_scatter_map(const finite_element::FiniteElementMesh& fe_mesh
                         << fe_mesh.mesh.elements()[std::get<2>(v)].global_index() << std::endl;
         }
         problem_out.close();
+        */
     }
 
     detail::build_receive_maps(elements_to_receive_set, scatter_map);

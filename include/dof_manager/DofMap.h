@@ -148,10 +148,10 @@ struct DofMap
           utility::named_ref("owned_global_dof_begin", owned_global_dof_begin),
           utility::named_ref("owned_global_dof_end", owned_global_dof_end));
 
-        s(utility::named_value("element_n_dofs", utility::slice(element_n_dofs)),
+        s(utility::named_value("element_n_dofs", utility::slice_c(element_n_dofs)),
           utility::named_value("element_to_rank_maps",
                                utility::slice_list(element_to_rank_maps, element_n_dofs)),
-          utility::named_value("rank_to_global_map", utility::slice(rank_to_global_map)));
+          utility::named_value("rank_to_global_map", utility::slice_c(rank_to_global_map)));
     }
 
     template<typename SerializerType>

@@ -174,7 +174,7 @@ static void update_second_neighbor_compatibilities(
     // TODO this only needs to be updated for modified elements right?
     for (auto element_index : utility::range(fe_mesh.mesh.elements().size()))
     {
-        auto requires_update = element_update_flags[element_index];
+        bool requires_update = element_update_flags[element_index];
         for (auto& n : element_adjacency.get_adjacent_element_indices(element_index))
         {
             requires_update |= element_update_flags[n];

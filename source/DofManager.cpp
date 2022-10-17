@@ -496,9 +496,11 @@ std::vector<RankDofIndex> DofManager::renumber(const finite_element::FiniteEleme
 
     detail::update_compatibility_map(*basal_field_compatibility_map_, fe_mesh, element_adjacency);
 
+    /*
     detail::write_compatibility_graph("updated_compatibility_graph",
                                       fe_mesh,
                                       *basal_field_compatibility_map_);
+                                      */
 
     auto new_dof_map =
       enumeration_kernel(fe_mesh, element_adjacency, scatter_map, *basal_field_compatibility_map_);

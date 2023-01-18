@@ -53,8 +53,11 @@ class DofManager
 
     /// Sets the DoF enumeration state, allowing unit testing or a custom external initial
     /// DoF enumeration.  This is not expected to be used in BSAM++, except for testing.
-    /// \param owned_begin - the first owned DoF of the global range by this rank.
-    /// \param owned_end - the last owned DoF of the global range by this rank (inclusive range).
+    /// @param n_owned_elements - number of elements this rank owns
+    /// @param owned_begin - the first owned DoF of the global range by this rank
+    /// @param owned_end - the last owned DoF of the global range by this rank (inclusive range)
+    /// @param element_to_rank_maps - a map that enumerates the rank-level DoF numbering for each element
+    /// @param rank_to_global_map - a map from the rank-level numbering to the global-level numbering
     void set_custom_enumeration(const ElementLocalIndex& n_owned_elements,
                                 const GlobalDofIndex& owned_begin,
                                 const GlobalDofIndex& owned_end,
@@ -67,7 +70,7 @@ class DofManager
     /// is simply appended (a copy) to the end of the element-to-rank map, thus depending on the
     /// convention that an enrichment reuses the enriched basal field and appends a new one.
     ///
-    /// @important During enrichment phase, the DoF maps are in a state that allows the solution
+    /// @attention During enrichment phase, the DoF maps are in a state that allows the solution
     ///            vector to remain valid but also in a state that is very non-physical if the
     ///            solver were to be invoked.  Be sure to call renumber before solving after
     ///            new enrichments have been added.

@@ -31,8 +31,8 @@ std::vector<int> ScatterMapDestBuilder::get_dest_ranks()
     std::multimap<int, int> rank_to_source_multimap;
     for (auto rank : utility::indices(source_rank_bitset_by_rank))
     {
-        Roaring source_rank_for_dest;
-        source_rank_for_dest = Roaring::readSafe(source_rank_bitset_by_rank[rank].c_str(),
+        roaring::Roaring source_rank_for_dest;
+        source_rank_for_dest = roaring::Roaring::readSafe(source_rank_bitset_by_rank[rank].c_str(),
                                                  source_rank_bitset_by_rank[rank].size());
         // std::cout << "Serialized bit from " << rank << ": '" << source_rank_bitset_by_rank[rank]
         // <<

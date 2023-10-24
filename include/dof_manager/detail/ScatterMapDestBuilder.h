@@ -58,7 +58,7 @@ class ScatterMapDestBuilder
     std::vector<int> get_source_ranks();
 
   private:
-    Roaring source_ranks_bitset_;
+    roaring::Roaring source_ranks_bitset_;
 };
 
 }

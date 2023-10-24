@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.17)
 
 cmake_policy(SET CMP0048 NEW)
-project(MESH VERSION 1.0.0 LANGUAGES CXX)
+project(DOFMANAGER VERSION 1.0.0 LANGUAGES CXX)
 
 #########################################
 # Variables that configure this project #

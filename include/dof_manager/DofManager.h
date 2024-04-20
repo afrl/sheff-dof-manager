@@ -46,7 +46,13 @@ class DofManager
     //////////////////////////////////////////////////////////////////////////////////////////
     // Modifiers
 
+    /// @brief Specifies the number of DoFs that are not tied to any element / basis function (Note: these
+    ///        DoFs will be owned by the last rank).
+    void set_n_free_global_dofs(const RankDofIndex& n_free_global_dofs);
+
     /// Enumerates the DoF's for any state, even if enrichments exist.
+    /// @param n_free_global_dofs - specifies the number of DoFs that are not tied to any
+    ///        element / basis function (Note: these DoFs will be owned by the last rank).
     void enumerate(const finite_element::FiniteElementMesh& fe_mesh,
                    const mesh::ElementAdjacencyList& element_adjacency,
                    const ElementScatterMap& scatter_map);

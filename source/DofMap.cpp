@@ -2,16 +2,6 @@
 
 namespace dof_manager
 {
-DofMap::DofMap()
-  : n_owned_elements(0)
-  , owned_global_dof_begin(0)
-  , owned_global_dof_end(0)
-  , n_owned_dofs(0)
-  , n_local_ghost_dofs(0)
-  , n_exclusive_ghost_dofs(0)
-{
-}
-
 DofMap::DofMap(const DofMap& other)
 {
     *this = other;

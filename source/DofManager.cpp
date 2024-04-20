@@ -19,7 +19,8 @@ static DofMap enumeration_kernel(
   const finite_element::FiniteElementMesh& fe_mesh,
   const mesh::ElementAdjacencyList& element_adjacency,
   const ElementScatterMap& scatter_map,
-  const detail::BasalFieldCompatibilityMap& basal_field_compatibility_map)
+  const detail::BasalFieldCompatibilityMap& basal_field_compatibility_map,
+  const RankDofIndex n_free_global_dofs)
 {
     auto local_rank = utility::MPIUtils::get_local_rank();
     // If this fails, then the partitioning algorithm is wrong, since the ownened elements
@@ -28,11 +29,15 @@ static DofMap enumeration_kernel(
 
     DofMap new_dof_map;
 
+    new_dof_map.n_free_global_dofs = n_free_global_dofs;
+
     // For now, assume each node has the same number of DoF's at the start of the analysis.
     // This algorithm will have to be generalized if this is not the case.
     auto n_dofs_per_point =
       finite_element::FiniteElement::get_n_dofs_per_point(*fe_mesh.layouts.front());
 
+    // Initialize element_to_rank_maps, element_n_dofs, and n_owned_elements for new_dof_map
+    // with the element_to_rank_maps being set to an "uninitialized" value
     constexpr RankDofIndex UNITIALIZED_DOF = std::numeric_limits<RankDofIndex>::max();
     new_dof_map.element_to_rank_maps.resize(fe_mesh.mesh.elements().size(), nullptr);
     new_dof_map.element_n_dofs.resize(fe_mesh.mesh.elements().size());
@@ -58,6 +63,10 @@ static DofMap enumeration_kernel(
         }
     }
 
+    // Loop over the elements and perform an initial rank-level enumeration with owned DoFs and
+    // ghost DoFs tracked separately but each enumerated starting at 0. The ghost DoFs will be fixed
+    // in the next loop to start at the number of owned DoFs (at this moment, we don't know how many
+    // owned DoFs there are).
     RankDofIndex owned_count = 0;
     RankDofIndex ghost_count = 0;
     for (auto fe : fe_mesh.finite_elements())
@@ -156,6 +165,17 @@ static DofMap enumeration_kernel(
         }
     }
 
+    // The last rank will own the global free DoFs
+    if (local_rank == utility::MPIUtils::get_num_local_ranks() - 1)
+    {
+        owned_count += n_free_global_dofs;
+    }
+    else
+    {
+        new_dof_map.free_global_dof_rank_begin = owned_count + ghost_count;
+        ghost_count += n_free_global_dofs;
+    }
+
     const auto n_owned_dofs                = owned_count;
     const auto n_ghost_dofs                = ghost_count;
     const auto n_owned_dofs_on_lower_ranks = utility::MPIUtils::sum_of_lower_ranks(n_owned_dofs);
@@ -196,11 +216,21 @@ static DofMap enumeration_kernel(
     {
         new_dof_map.rank_to_global_map[i] = new_dof_map.owned_global_dof_begin + i;
     }
-    // At this point, the rank-to-global map is only half complete.  The owned DoFs are enumerated,
-    // but MPI communication is needed for ghost DoF's
 
-    
-    //std::ofstream dof_out("dof_log_" + std::to_string(local_rank) + ".txt");
+    // We know the global DoFs of the free global DoFs, since they will be at the end.
+    auto n_global_dofs = utility::MPIUtils::sum_across_ranks(n_owned_dofs);
+    for (auto i : utility::range(n_free_global_dofs))
+    {
+        new_dof_map.rank_to_global_map[new_dof_map.free_global_dof_rank_begin + i] =
+          n_global_dofs - n_free_global_dofs + i;
+    }
+
+    // At this point, the rank-to-global map is only partially complete.  The owned DoFs and free
+    // global DoFs are enumerated, but MPI communication is needed to determine the global index of
+    // ghost DoFs.
+
+
+    // std::ofstream dof_out("dof_log_" + std::to_string(local_rank) + ".txt");
 
     // dof_out << "Building send buffer..." << std::endl;
     // Build the buffer containing the element-to-global map for elements on this rank that appear
@@ -212,10 +242,11 @@ static DofMap enumeration_kernel(
         // dof_out << "Buffer to rank " << dest_rank.rank << std::endl;
         for (auto local_element_index : scatter_map.elements_to_send_range(dest_rank))
         {
-            // dof_out << "For element l" << local_element_index << " g" << fe_mesh.mesh.elements()[local_element_index].global_index() << " : ";
-            // It is not neccessary to send the # of DoF's for the element, since the destination
-            // rank can figure that out from the # of basal fields.  However, we will send it for
-            // the sake of checking that ranks are consistent.
+            // dof_out << "For element l" << local_element_index << " g" <<
+            // fe_mesh.mesh.elements()[local_element_index].global_index() << " : "; It is not
+            // neccessary to send the # of DoF's for the element, since the destination rank can
+            // figure that out from the # of basal fields.  However, we will send it for the sake of
+            // checking that ranks are consistent.
             send_buffer.push_back(new_dof_map.element_n_dofs[local_element_index]);
             // dof_out << new_dof_map.element_n_dofs[local_element_index] << " ";
 
@@ -262,7 +293,9 @@ static DofMap enumeration_kernel(
     for (auto source_rank : scatter_map.source_ranks_range())
     {
         // dof_out << "To rank " << source_rank.rank << std::endl;
-        for (auto o = receive_offsets[source_rank.index]; o < receive_offsets[source_rank.index + 1]; o++)
+        for (auto o = receive_offsets[source_rank.index];
+             o < receive_offsets[source_rank.index + 1];
+             o++)
         {
             // dof_out << receive_buffer[o] << " ";
         }
@@ -285,7 +318,8 @@ static DofMap enumeration_kernel(
             auto n_dofs_for_element = receive_buffer[curr_offset++];
             assert(new_dof_map.element_n_dofs[local_element_index] == n_dofs_for_element);
 
-            // dof_out << "For element l" << local_element_index << " g" << fe_mesh.mesh.elements()[local_element_index].global_index() << " : ";
+            // dof_out << "For element l" << local_element_index << " g" <<
+            // fe_mesh.mesh.elements()[local_element_index].global_index() << " : ";
 
             auto fe = fe_mesh.get_finite_element(local_element_index);
             const ElementDofIndex n_dofs_per_field =
@@ -308,7 +342,10 @@ static DofMap enumeration_kernel(
                             auto global_dof = receive_buffer[curr_offset++];
                             auto rank_dof =
                               basal_field_dof_map[node_conn_index * n_dofs_per_point + i];
-                            // dof_out << "(" << (int)basal_field_index << ", " << (int)node_conn_index << ", g" << fe.element.node(node_conn_index).global_index() << ", " << rank_dof << " -> " << global_dof << ") ";
+                            // dof_out << "(" << (int)basal_field_index << ", " <<
+                            // (int)node_conn_index << ", g" <<
+                            // fe.element.node(node_conn_index).global_index() << ", " << rank_dof
+                            // << " -> " << global_dof << ") ";
 
                             assert(new_dof_map.rank_to_global_map[rank_dof] ==
                                      GLOBAL_UNITIALIZED_DOF ||
@@ -335,7 +372,7 @@ static DofMap enumeration_kernel(
         assert(curr_offset == receive_offsets[source_rank.index + 1]);
     }
 
-    //dof_out << "Postupdate DoF Map" << std::endl << new_dof_map.str(fe_mesh) << std::endl;
+    // dof_out << "Postupdate DoF Map" << std::endl << new_dof_map.str(fe_mesh) << std::endl;
 
     /*
 //#ifndef NDEBUG
@@ -412,6 +449,11 @@ const detail::BasalFieldCompatibilityMap& DofManager::get_updated_basal_field_co
     return *basal_field_compatibility_map_;
 }
 
+void DofManager::set_n_free_global_dofs(const RankDofIndex& n_free_global_dofs)
+{
+    dof_map_.n_free_global_dofs = n_free_global_dofs;
+}
+
 void DofManager::enumerate(const finite_element::FiniteElementMesh& fe_mesh,
                            const mesh::ElementAdjacencyList& element_adjacency,
                            const ElementScatterMap& scatter_map)
@@ -428,8 +470,11 @@ void DofManager::enumerate(const finite_element::FiniteElementMesh& fe_mesh,
     //                                  fe_mesh,
     //                                  *basal_field_compatibility_map_);
 
-    dof_map_ =
-      enumeration_kernel(fe_mesh, element_adjacency, scatter_map, *basal_field_compatibility_map_);
+    dof_map_ = enumeration_kernel(fe_mesh,
+                                  element_adjacency,
+                                  scatter_map,
+                                  *basal_field_compatibility_map_,
+                                  dof_map_.n_free_global_dofs);
 }
 
 void DofManager::set_custom_enumeration(
@@ -502,8 +547,11 @@ std::vector<RankDofIndex> DofManager::renumber(const finite_element::FiniteEleme
                                       *basal_field_compatibility_map_);
                                       */
 
-    auto new_dof_map =
-      enumeration_kernel(fe_mesh, element_adjacency, scatter_map, *basal_field_compatibility_map_);
+    auto new_dof_map = enumeration_kernel(fe_mesh,
+                                          element_adjacency,
+                                          scatter_map,
+                                          *basal_field_compatibility_map_,
+                                          dof_map_.n_free_global_dofs);
 
     assert(new_dof_map.element_to_rank_maps.size() == dof_map_.element_to_rank_maps.size());
     std::vector<RankDofIndex> new_to_old_clone_map(new_dof_map.n_dofs_on_rank(),

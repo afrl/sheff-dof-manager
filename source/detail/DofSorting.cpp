@@ -32,17 +32,28 @@ std::vector<std::size_t> sort_intervals(DofMap& dof_map)
         }
     }
 
+    // Make free global DoFs (i.e. the DoFs that represent quantities across the entire model, such
+    // as volume average displacement gradients for periodic BCs).
+    for (auto i : utility::range(dof_map.n_free_global_dofs))
+    {
+        dof_types_map[dof_map.free_global_dof_rank_begin + i] = DofType::LOCAL_GHOST;
+    }
+
     // Update counts
     dof_map.n_owned_dofs = static_cast<RankDofIndex>(
-      std::count_if(dof_types_map.begin(), dof_types_map.end(), [](const DofType& type) -> bool {
-          return type == DofType::OWNED;
-      }));
+      std::count_if(dof_types_map.begin(),
+                    dof_types_map.end(),
+                    [](const DofType& type) -> bool { return type == DofType::OWNED; }));
     dof_map.n_local_ghost_dofs = static_cast<RankDofIndex>(
-      std::count_if(dof_types_map.begin(), dof_types_map.end(), [](const DofType& type) -> bool {
-          return type == DofType::LOCAL_GHOST;
-      }));
+      std::count_if(dof_types_map.begin(),
+                    dof_types_map.end(),
+                    [](const DofType& type) -> bool { return type == DofType::LOCAL_GHOST; }));
     dof_map.n_exclusive_ghost_dofs = static_cast<RankDofIndex>(dof_types_map.size()) -
                                      dof_map.n_owned_dofs - dof_map.n_local_ghost_dofs;
+
+    // Update the starting DoF for free global doFs to begin at the end of the local ghost range
+    dof_map.free_global_dof_rank_begin =
+      dof_map.n_owned_dofs + dof_map.n_local_ghost_dofs - dof_map.n_free_global_dofs;
 
 
     // Sort the rank indices first by the DoF type then by the global index
@@ -52,7 +63,8 @@ std::vector<std::size_t> sort_intervals(DofMap& dof_map)
     std::sort(backward_permutation_indices.begin(),
               backward_permutation_indices.end(),
               [&dof_types_map, &rank_to_global_map_ref](const std::size_t& lhs_index,
-                                                        const std::size_t& rhs_index) -> bool {
+                                                        const std::size_t& rhs_index) -> bool
+              {
                   return std::tie(dof_types_map[lhs_index], rank_to_global_map_ref[lhs_index]) <
                          std::tie(dof_types_map[rhs_index], rank_to_global_map_ref[rhs_index]);
               });

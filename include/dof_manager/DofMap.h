@@ -52,29 +52,41 @@ using ElementToRankDofMap = ToRankDofMap;
 struct DofMap
 {
     /// The number of elements owned by this rank
-    mesh::LocalIndex n_owned_elements;
+    mesh::LocalIndex n_owned_elements = 0;
 
     /// The number of DoF's owned by this rank (excludes ghosts).
     /// Due to the global number scheme, this is equivalent to:
     /// owned_global_dof_end_ - owned_global_dof_begin_
-    /// Note: during the enrichment phase, this will be incorrect as new DoF's
-    //        do not have global numbers until the renumbering phase.
-    RankDofIndex n_owned_dofs;
-    /// The number of DoF's appearing in owned element DoF maps but are owned by other ranks
-    RankDofIndex n_local_ghost_dofs;
-    /// The number of DoF's that ONLY appear in ghost elements and are owned by other ranks
-    RankDofIndex n_exclusive_ghost_dofs;
+    /// Note: during the enrichment phase, this will be incorrect as new DoF's do not have global
+    //        numbers until the renumbering phase.
+    RankDofIndex n_owned_dofs = 0;
+    /// The number of DoF's appearing in owned element DoF maps but are owned by other ranks.
+    /// In other words, this rank will probably write to containers for these DoF entries even
+    /// though this rank does not own them.
+    RankDofIndex n_local_ghost_dofs = 0;
+    /// The number of DoF's that ONLY appear in ghost elements and are owned by other ranks.
+    /// In other words, this rank will only read from containers for these DoF entries.
+    RankDofIndex n_exclusive_ghost_dofs = 0;
+
+    /// Specifies the number of DoFs that are not tied to any element / basis function.
+    /// Note: These DoFs will be owned by the last rank. Consequently, it will be included in the
+    ///       count of n_owned_dofs for the last rank, but will appear in the count of
+    ///       n_local_ghost_dofs for all other ranks (since they may write to entries corresponding
+    ///       to these DoFs).
+    RankDofIndex n_free_global_dofs = 0;
+    /// The rank index that marks the beginning of the free global DoFs.
+    RankDofIndex free_global_dof_rank_begin = 0;
 
     /// Since global numbering scheme will maintain that the DoF's owned by this rank
     /// lie within a continuous interval (with each rank's interval sorted by rank),
     /// this is the beginning of the range (inclusive).
     /// Note: during the enrichment phase, this will be incorrect as new DoF's
     //        do not have global numbers until the renumbering phase.
-    GlobalDofIndex owned_global_dof_begin;
+    GlobalDofIndex owned_global_dof_begin = 0;
     /// The end of the global owned range (inclusive). \see owned_global_dof_begin_
     /// Note: during the enrichment phase, this will be incorrect as new DoF's
     //        do not have global numbers until the renumbering phase.
-    GlobalDofIndex owned_global_dof_end;
+    GlobalDofIndex owned_global_dof_end = 0;
 
     /// The number of DoF's in each element, corresponds to element_to_rank_maps_
     std::vector<ElementDofIndex> element_n_dofs;
@@ -102,7 +114,7 @@ struct DofMap
     std::vector<GlobalDofIndex> rank_to_global_map;
 
 
-    DofMap();
+    DofMap() = default;
     DofMap(const DofMap& other);
     DofMap(DofMap&& other) noexcept;
     ~DofMap();
@@ -145,6 +157,8 @@ struct DofMap
           utility::named_ref("n_owned_dofs", n_owned_dofs),
           utility::named_ref("n_local_ghost_dofs", n_local_ghost_dofs),
           utility::named_ref("n_exclusive_ghost_dofs", n_exclusive_ghost_dofs),
+          utility::named_ref("n_free_global_dofs", n_free_global_dofs),
+          utility::named_ref("free_global_dof_rank_begin", free_global_dof_rank_begin),
           utility::named_ref("owned_global_dof_begin", owned_global_dof_begin),
           utility::named_ref("owned_global_dof_end", owned_global_dof_end));
 
@@ -163,6 +177,8 @@ struct DofMap
           n_owned_dofs,
           n_local_ghost_dofs,
           n_exclusive_ghost_dofs,
+          n_free_global_dofs,
+          free_global_dof_rank_begin,
           owned_global_dof_begin,
           owned_global_dof_end);
 
